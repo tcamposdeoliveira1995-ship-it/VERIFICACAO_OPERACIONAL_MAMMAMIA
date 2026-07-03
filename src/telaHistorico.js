@@ -171,6 +171,7 @@ function renderDetalhe(container, estado, salvarEstado, abrirPdf) {
       const cartao = document.createElement('div');
       cartao.className = 'cartao-item';
       const fotos = item.fotos ? String(item.fotos).split(',').filter(Boolean) : [];
+      const fotosBase64 = item.fotosBase64 || [];
       const statusCor = item.status === 'C' ? 'var(--cor-conforme)' : item.status === 'NC' ? 'var(--cor-nao-conforme)' : 'var(--cor-texto-fraco)';
       cartao.innerHTML = `
         <div class="cartao-item__cabecalho">
@@ -183,7 +184,7 @@ function renderDetalhe(container, estado, salvarEstado, abrirPdf) {
         ${item.descricao ? `<p style="margin-top:12px;color:var(--cor-texto-suave);">${item.descricao}</p>` : ''}
         ${fotos.length > 0 ? `
           <div class="cartao-item__fotos" style="margin-top:12px;">
-            ${fotos.map(url => `<a href="${url}" target="_blank"><img class="cartao-item__foto" src="${url}" /></a>`).join('')}
+            ${fotos.map((url, idx) => `<a href="${url}" target="_blank"><img class="cartao-item__foto" src="${fotosBase64[idx] || url}" /></a>`).join('')}
           </div>` : ''}
       `;
       div.appendChild(cartao);
