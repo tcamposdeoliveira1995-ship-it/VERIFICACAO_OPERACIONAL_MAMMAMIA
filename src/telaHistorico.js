@@ -12,11 +12,11 @@ export function criarEstadoHistorico() {
   };
 }
 
-export async function montarTelaHistorico(container, estado, salvarEstado, novaVerificacao, abrirPdf) {
+export async function montarTelaHistorico(container, estado, salvarEstado, novaVerificacao, abrirPdf, abrirPlanoAcao) {
   container.innerHTML = '';
 
   if (estado.verificacaoAberta) {
-    renderDetalhe(container, estado, salvarEstado, abrirPdf);
+    renderDetalhe(container, estado, salvarEstado, abrirPdf, abrirPlanoAcao);
     return;
   }
 
@@ -125,7 +125,7 @@ function formatarDataBR(dataISO) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function renderDetalhe(container, estado, salvarEstado, abrirPdf) {
+function renderDetalhe(container, estado, salvarEstado, abrirPdf, abrirPlanoAcao) {
   const div = document.createElement('div');
   div.className = 'conteudo';
 
@@ -217,9 +217,19 @@ function renderDetalhe(container, estado, salvarEstado, abrirPdf) {
     div.appendChild(assinaturas);
   }
 
+  const temNC = itens.some(item => item.status === 'NC');
+  if (temNC) {
+    const botaoPlano = document.createElement('button');
+    botaoPlano.className = 'botao botao--secundario botao--bloco';
+    botaoPlano.style.marginTop = '24px';
+    botaoPlano.textContent = 'Ver plano de ação desta verificação';
+    botaoPlano.addEventListener('click', () => abrirPlanoAcao(verificacao.id));
+    div.appendChild(botaoPlano);
+  }
+
   const botaoPdf = document.createElement('button');
   botaoPdf.className = 'botao botao--primario botao--bloco';
-  botaoPdf.style.marginTop = '24px';
+  botaoPdf.style.marginTop = '12px';
   botaoPdf.textContent = 'Gerar PDF';
   botaoPdf.addEventListener('click', () => abrirPdf(aberta.dados));
   div.appendChild(botaoPdf);
