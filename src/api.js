@@ -69,6 +69,14 @@ export async function obterVerificacao(id) {
   return get('obterVerificacao', { id });
 }
 
+export async function listarNaoConformidades() {
+  return get('listarNaoConformidades');
+}
+
+export async function salvarPlanoAcao(dados) {
+  await post('salvarPlanoAcao', dados);
+}
+
 /* Converte um arquivo (File) em base64, redimensionando e comprimindo
    (fotos de celular costumam vir muito grandes para enviar direto) */
 export function arquivoParaBase64(arquivo, larguraMaxima = 1280, qualidade = 0.72) {
