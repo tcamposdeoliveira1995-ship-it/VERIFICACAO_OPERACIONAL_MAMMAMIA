@@ -7,17 +7,28 @@ export function criarEstadoPlanoAcao() {
     lista: [],
     carregando: true,
     filtroEmpresa: '',
-    filtroStatus: '' // '' | 'pendente' | 'concluido'
+    filtroStatus: '', // '' | 'pendente' | 'concluido'
+    filtroVerificacaoId: null // quando definido, mostra só as NCs dessa verificação
   };
 }
 
-export async function montarTelaPlanoAcao(container, estado, salvarEstado) {
+export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   container.innerHTML = '';
 
   const div = document.createElement('div');
   div.className = 'conteudo';
+
+  const avisoFiltro = estado.filtroVerificacaoId ? `
+    <div class="linha" style="align-items:center;background:rgba(201,162,39,0.1);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
+      <span style="flex:1;color:var(--cor-dourado-claro);font-size:13px;">Mostrando só as NCs desta verificação</span>
+      <button class="botao botao--secundario" id="botao-limpar-filtro-verificacao" style="padding:6px 12px;font-size:12px;">Ver todas</button>
+    </div>
+  ` : '';
+
   div.innerHTML = `
     <h2 style="margin-bottom:16px;">Plano de Ação</h2>
+
+    ${avisoFiltro}
 
     <div class="linha" style="margin-bottom:12px;">
       <select id="filtro-empresa-plano" style="flex:1;">
@@ -37,6 +48,14 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado) {
   `;
   container.appendChild(div);
 
+  const botaoLimparFiltro = div.querySelector('#botao-limpar-filtro-verificacao');
+  if (botaoLimparFiltro) {
+    botaoLimparFiltro.addEventListener('click', () => {
+      estado.filtroVerificacaoId = null;
+      salvarEstado(estado);
+    });
+  }
+
   div.querySelector('#botao-pdf-plano').addEventListener('click', () => {
     const listaFiltrada = filtrarLista(estado);
     if (listaFiltrada.length === 0) {
@@ -47,7 +66,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado) {
   });
 
   const listaPlano = div.querySelector('#lista-plano');
-  renderLista(listaPlano, estado, salvarEstado);
+  renderLista(listaPlano, estado, salvarEstado, abrirVerificacaoOrigem);
 
   const aplicarFiltro = () => {
     estado.filtroEmpresa = div.querySelector('#filtro-empresa-plano').value;
@@ -64,7 +83,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado) {
       estado.lista = [];
     }
     estado.carregando = false;
-    renderLista(listaPlano, estado, salvarEstado);
+    renderLista(listaPlano, estado, salvarEstado, abrirVerificacaoOrigem);
   }
 }
 
@@ -77,6 +96,9 @@ function formatarDataBR(dataISO) {
 
 function filtrarLista(estado) {
   let lista = estado.lista;
+  if (estado.filtroVerificacaoId) {
+    lista = lista.filter(i => i.verificacao_id === estado.filtroVerificacaoId);
+  }
   if (estado.filtroEmpresa) {
     lista = lista.filter(i => i.empresa === estado.filtroEmpresa);
   }
@@ -88,7 +110,7 @@ function filtrarLista(estado) {
   return lista;
 }
 
-function renderLista(container, estado, salvarEstado) {
+function renderLista(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   if (estado.carregando) {
     container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
     return;
@@ -103,11 +125,11 @@ function renderLista(container, estado, salvarEstado) {
 
   container.innerHTML = '';
   lista.forEach(nc => {
-    container.appendChild(montarCartaoNC(nc, salvarEstado, estado));
+    container.appendChild(montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem));
   });
 }
 
-function montarCartaoNC(nc, salvarEstado, estado) {
+function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem) {
   const cartao = document.createElement('div');
   cartao.className = 'cartao-item';
 
@@ -148,7 +170,10 @@ function montarCartaoNC(nc, salvarEstado, estado) {
           <input type="date" value="${nc.data_realizada || ''}" data-campo="data_realizada" />
         </div>
       </div>
-      <button class="botao botao--secundario botao--bloco" id="botao-pdf-nc" style="margin-top:4px;">Gerar PDF desta NC</button>
+      <div class="linha" style="margin-top:4px;">
+        <button class="botao botao--secundario" id="botao-ver-origem" style="flex:1;">Ver verificação de origem</button>
+        <button class="botao botao--secundario" id="botao-pdf-nc" style="flex:1;">Gerar PDF desta NC</button>
+      </div>
     </div>
   `;
 
@@ -180,6 +205,10 @@ function montarCartaoNC(nc, salvarEstado, estado) {
 
   cartao.querySelector('#botao-pdf-nc').addEventListener('click', () => {
     gerarPdfNaoConformidade(nc);
+  });
+
+  cartao.querySelector('#botao-ver-origem').addEventListener('click', () => {
+    abrirVerificacaoOrigem(nc.verificacao_id);
   });
 
   return cartao;
