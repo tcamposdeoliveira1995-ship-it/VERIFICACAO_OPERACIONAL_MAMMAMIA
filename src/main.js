@@ -2,6 +2,7 @@ import { criarEstadoInicial, montarTelaNovaVerificacao } from './telaNovaVerific
 import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
 import { criarEstadoPlanoAcao, montarTelaPlanoAcao } from './telaPlanoAcao.js';
 import { gerarPdfVerificacao } from './gerarPdf.js';
+import { obterVerificacao } from './api.js';
 
 const appEl = document.getElementById('app');
 
@@ -55,9 +56,9 @@ function render() {
   if (telaAtual === 'nova') {
     montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
   } else if (telaAtual === 'plano') {
-    montarTelaPlanoAcao(containerTela, estadoPlanoAcao, salvarEstadoPlanoAcao);
+    montarTelaPlanoAcao(containerTela, estadoPlanoAcao, salvarEstadoPlanoAcao, abrirVerificacaoOrigem);
   } else {
-    montarTelaHistorico(containerTela, estadoHistorico, salvarEstadoHistorico, irParaNovaVerificacao, abrirPdf);
+    montarTelaHistorico(containerTela, estadoHistorico, salvarEstadoHistorico, irParaNovaVerificacao, abrirPdf, abrirPlanoDeVerificacao);
   }
 }
 
@@ -91,6 +92,26 @@ function irParaNovaVerificacao() {
 
 function abrirPdf(dadosVerificacao) {
   gerarPdfVerificacao(dadosVerificacao);
+}
+
+/* Histórico -> Plano de Ação (filtrado só nessa verificação) */
+function abrirPlanoDeVerificacao(verificacaoId) {
+  estadoPlanoAcao = criarEstadoPlanoAcao();
+  estadoPlanoAcao.filtroVerificacaoId = verificacaoId;
+  telaAtual = 'plano';
+  render();
+}
+
+/* Plano de Ação -> Histórico (abre direto o detalhe da verificação de origem) */
+async function abrirVerificacaoOrigem(verificacaoId) {
+  estadoHistorico = criarEstadoHistorico();
+  estadoHistorico.verificacaoAberta = { id: verificacaoId, carregando: true };
+  telaAtual = 'historico';
+  render();
+
+  const detalhe = await obterVerificacao(verificacaoId);
+  estadoHistorico.verificacaoAberta = { id: verificacaoId, carregando: false, dados: detalhe };
+  render();
 }
 
 render();
