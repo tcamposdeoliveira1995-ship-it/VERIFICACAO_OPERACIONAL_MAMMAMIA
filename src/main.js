@@ -1,8 +1,11 @@
 import { criarEstadoInicial, montarTelaNovaVerificacao } from './telaNovaVerificacao.js';
+import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
 
 const appEl = document.getElementById('app');
 
-let estado = criarEstadoInicial();
+let telaAtual = 'historico'; // abre no histórico por padrão
+let estadoNovaVerificacao = criarEstadoInicial();
+let estadoHistorico = criarEstadoHistorico();
 
 function render() {
   appEl.innerHTML = '';
@@ -18,19 +21,39 @@ function render() {
   const containerTela = document.createElement('div');
   appEl.appendChild(containerTela);
 
-  montarTelaNovaVerificacao(containerTela, estado, salvarEstado, irParaHistorico);
+  if (telaAtual === 'nova') {
+    montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
+  } else {
+    montarTelaHistorico(containerTela, estadoHistorico, salvarEstadoHistorico, irParaNovaVerificacao, abrirPdf);
+  }
 }
 
-function salvarEstado(novoEstado) {
-  estado = novoEstado;
+function salvarEstadoNovaVerificacao(novoEstado) {
+  estadoNovaVerificacao = novoEstado;
+  render();
+}
+
+function salvarEstadoHistorico(novoEstado) {
+  estadoHistorico = novoEstado;
   render();
 }
 
 function irParaHistorico() {
-  // Etapa 5 (tela de histórico) ainda será implementada.
-  // Por enquanto, inicia uma nova verificação.
-  estado = criarEstadoInicial();
+  estadoNovaVerificacao = criarEstadoInicial();
+  estadoHistorico = criarEstadoHistorico();
+  telaAtual = 'historico';
   render();
+}
+
+function irParaNovaVerificacao() {
+  estadoNovaVerificacao = criarEstadoInicial();
+  telaAtual = 'nova';
+  render();
+}
+
+function abrirPdf(dadosVerificacao) {
+  // Implementado na Etapa 6
+  alert('Geração de PDF ainda será implementada.');
 }
 
 render();
