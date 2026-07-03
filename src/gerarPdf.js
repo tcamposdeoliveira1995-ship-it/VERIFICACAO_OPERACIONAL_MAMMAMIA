@@ -85,16 +85,34 @@ export function gerarPdfVerificacao(dados) {
       y += linhasDescricao.length * 4.5 + 2;
     }
 
-    const fotos = item.fotos ? String(item.fotos).split(',').filter(Boolean) : [];
-    if (fotos.length > 0) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...COR_DOURADO);
-      fotos.forEach((url, idx) => {
-        novaPaginaSeNecessario(5);
-        doc.textWithLink(`Foto ${idx + 1} anexada (abrir link)`, margemEsquerda + 4, y, { url });
-        y += 4.5;
+    const fotosBase64 = item.fotosBase64 || [];
+    if (fotosBase64.length > 0) {
+      const larguraFoto = 32;
+      const alturaFoto = 32;
+      const espacoFoto = 4;
+      const fotosPorLinha = Math.floor(larguraUtil / (larguraFoto + espacoFoto));
+
+      novaPaginaSeNecessario(alturaFoto + 4);
+      let xFoto = margemEsquerda + 4;
+      let contadorNaLinha = 0;
+
+      fotosBase64.forEach(base64 => {
+        if (contadorNaLinha >= fotosPorLinha) {
+          xFoto = margemEsquerda + 4;
+          contadorNaLinha = 0;
+          y += alturaFoto + espacoFoto;
+          novaPaginaSeNecessario(alturaFoto + 4);
+        }
+        try {
+          const formato = base64.includes('image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(base64, formato, xFoto, y, larguraFoto, alturaFoto);
+        } catch (err) {
+          // se uma imagem específica falhar, segue sem travar o PDF inteiro
+        }
+        xFoto += larguraFoto + espacoFoto;
+        contadorNaLinha++;
       });
+      y += alturaFoto + 4;
     }
 
     y += 3;
