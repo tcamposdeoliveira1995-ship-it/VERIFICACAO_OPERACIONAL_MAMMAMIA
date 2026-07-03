@@ -1,5 +1,6 @@
 import { criarEstadoInicial, montarTelaNovaVerificacao } from './telaNovaVerificacao.js';
 import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
+import { gerarPdfVerificacao } from './gerarPdf.js';
 
 const appEl = document.getElementById('app');
 
@@ -52,8 +53,7 @@ function irParaNovaVerificacao() {
 }
 
 function abrirPdf(dadosVerificacao) {
-  // Implementado na Etapa 6
-  alert('Geração de PDF ainda será implementada.');
+  gerarPdfVerificacao(dadosVerificacao);
 }
 
 render();
