@@ -23,13 +23,10 @@ async function get(action, params = {}) {
 /* ---------- POST (escrita — no-cors, fire-and-forget) ---------- */
 
 async function post(action, dados) {
-  const url = new URL(API_URL);
-  url.searchParams.set('action', action);
-  url.searchParams.set('dados', JSON.stringify(dados));
-
-  await fetch(url.toString(), {
+  await fetch(API_URL, {
     method: 'POST',
-    mode: 'no-cors'
+    mode: 'no-cors',
+    body: JSON.stringify({ action, dados })
   });
 }
 
@@ -72,11 +69,30 @@ export async function obterVerificacao(id) {
   return get('obterVerificacao', { id });
 }
 
-/* Converte um arquivo (File) em base64 para envio ao Drive via Apps Script */
-export function arquivoParaBase64(arquivo) {
+/* Converte um arquivo (File) em base64, redimensionando e comprimindo
+   (fotos de celular costumam vir muito grandes para enviar direto) */
+export function arquivoParaBase64(arquivo, larguraMaxima = 1280, qualidade = 0.72) {
   return new Promise((resolve, reject) => {
     const leitor = new FileReader();
-    leitor.onload = () => resolve(leitor.result);
+    leitor.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let largura = img.width;
+        let altura = img.height;
+        if (largura > larguraMaxima) {
+          altura = Math.round(altura * (larguraMaxima / largura));
+          largura = larguraMaxima;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = largura;
+        canvas.height = altura;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, largura, altura);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.onerror = reject;
+      img.src = leitor.result;
+    };
     leitor.onerror = reject;
     leitor.readAsDataURL(arquivo);
   });
