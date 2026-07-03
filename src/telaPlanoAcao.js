@@ -1,5 +1,6 @@
 import { listarNaoConformidades, salvarPlanoAcao } from './api.js';
 import { EMPRESAS } from './config.js';
+import { gerarPdfPlanoAcao, gerarPdfNaoConformidade } from './gerarPdf.js';
 
 export function criarEstadoPlanoAcao() {
   return {
@@ -31,8 +32,19 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado) {
     </div>
 
     <div id="lista-plano"></div>
+
+    <button class="botao botao--secundario botao--bloco" id="botao-pdf-plano" style="margin-top:16px;">Gerar PDF (lista filtrada)</button>
   `;
   container.appendChild(div);
+
+  div.querySelector('#botao-pdf-plano').addEventListener('click', () => {
+    const listaFiltrada = filtrarLista(estado);
+    if (listaFiltrada.length === 0) {
+      alert('Nenhuma não conformidade para gerar PDF com os filtros atuais.');
+      return;
+    }
+    gerarPdfPlanoAcao(listaFiltrada);
+  });
 
   const listaPlano = div.querySelector('#lista-plano');
   renderLista(listaPlano, estado, salvarEstado);
@@ -63,12 +75,7 @@ function formatarDataBR(dataISO) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function renderLista(container, estado, salvarEstado) {
-  if (estado.carregando) {
-    container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
-    return;
-  }
-
+function filtrarLista(estado) {
   let lista = estado.lista;
   if (estado.filtroEmpresa) {
     lista = lista.filter(i => i.empresa === estado.filtroEmpresa);
@@ -78,6 +85,16 @@ function renderLista(container, estado, salvarEstado) {
   } else if (estado.filtroStatus === 'concluido') {
     lista = lista.filter(i => !!i.data_realizada);
   }
+  return lista;
+}
+
+function renderLista(container, estado, salvarEstado) {
+  if (estado.carregando) {
+    container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
+    return;
+  }
+
+  const lista = filtrarLista(estado);
 
   if (lista.length === 0) {
     container.innerHTML = `<div class="estado-vazio">Nenhuma não conformidade encontrada.</div>`;
@@ -131,6 +148,7 @@ function montarCartaoNC(nc, salvarEstado, estado) {
           <input type="date" value="${nc.data_realizada || ''}" data-campo="data_realizada" />
         </div>
       </div>
+      <button class="botao botao--secundario botao--bloco" id="botao-pdf-nc" style="margin-top:4px;">Gerar PDF desta NC</button>
     </div>
   `;
 
@@ -159,6 +177,10 @@ function montarCartaoNC(nc, salvarEstado, estado) {
 
   [textarea, campoResponsavel].forEach(campo => campo.addEventListener('blur', salvar));
   [campoDataPrevista, campoDataRealizada].forEach(campo => campo.addEventListener('change', salvar));
+
+  cartao.querySelector('#botao-pdf-nc').addEventListener('click', () => {
+    gerarPdfNaoConformidade(nc);
+  });
 
   return cartao;
 }
