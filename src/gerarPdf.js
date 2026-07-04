@@ -115,40 +115,6 @@ export function gerarPdfVerificacao(dados) {
       y += alturaFoto + 4;
     }
 
-    if (item.status === 'NC' && (item.acao_corretiva || item.responsavel_acao || item.data_prevista || item.data_realizada)) {
-      novaPaginaSeNecessario(20);
-      const boxY = y;
-      doc.setDrawColor(...COR_DOURADO);
-      doc.setLineWidth(0.2);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...COR_DOURADO);
-      doc.text('PLANO DE AÇÃO', margemEsquerda + 4, y);
-      y += 4.5;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...COR_TEXTO);
-      if (item.acao_corretiva) {
-        const linhas = doc.splitTextToSize(`Ação corretiva: ${item.acao_corretiva}`, larguraUtil - 10);
-        doc.text(linhas, margemEsquerda + 4, y);
-        y += linhas.length * 4.5;
-      }
-      const linhaMeta = [
-        item.responsavel_acao ? `Responsável: ${item.responsavel_acao}` : null,
-        item.data_prevista ? `Prevista: ${formatarDataBR(item.data_prevista)}` : null,
-        item.data_realizada ? `Realizada: ${formatarDataBR(item.data_realizada)}` : null
-      ].filter(Boolean).join('     ');
-      if (linhaMeta) {
-        doc.setTextColor(...COR_SUAVE);
-        doc.text(linhaMeta, margemEsquerda + 4, y);
-        y += 4.5;
-      }
-      doc.rect(margemEsquerda, boxY - 4, larguraUtil, y - boxY + 2);
-      y += 3;
-    }
-
     y += 3;
   });
 
@@ -169,6 +135,67 @@ export function gerarPdfVerificacao(dados) {
       doc.setTextColor(...COR_TEXTO);
       doc.text(t.identificacao || '-', margemEsquerda, y);
       doc.text(`${t.temperatura}°C`, margemEsquerda + larguraUtil - 10, y, { align: 'right' });
+      y += 6;
+    });
+  }
+
+  /* ---------- Plano de Ação (consolidado, Problema/Solução) ---------- */
+  const itensNC = itensOrdenados.filter(item => item.status === 'NC');
+  if (itensNC.length > 0) {
+    novaPaginaSeNecessario(16);
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COR_TEXTO);
+    doc.text('Plano de Ação', margemEsquerda, y);
+    y += 7;
+
+    itensNC.forEach(item => {
+      novaPaginaSeNecessario(24);
+      const boxY = y;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...COR_TEXTO);
+      const linhasNome = doc.splitTextToSize(`Item ${String(item.numero_item).padStart(2, '0')} — ${item.nome_item}`, larguraUtil - 8);
+      doc.text(linhasNome, margemEsquerda + 4, y);
+      y += linhasNome.length * 4.4;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...COR_NAO_CONFORME);
+      doc.text('Problema:', margemEsquerda + 4, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COR_TEXTO);
+      const linhasProblema = doc.splitTextToSize(item.descricao || '(sem descrição)', larguraUtil - 30);
+      doc.text(linhasProblema, margemEsquerda + 24, y);
+      y += Math.max(linhasProblema.length, 1) * 4.4;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...COR_CONFORME);
+      doc.text('Solução:', margemEsquerda + 4, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...(item.acao_corretiva ? COR_TEXTO : COR_SUAVE));
+      const linhasSolucao = doc.splitTextToSize(item.acao_corretiva || '(ação corretiva ainda não definida)', larguraUtil - 30);
+      novaPaginaSeNecessario(linhasSolucao.length * 4.4 + 10);
+      doc.text(linhasSolucao, margemEsquerda + 24, y);
+      y += Math.max(linhasSolucao.length, 1) * 4.4;
+
+      const meta = [
+        item.responsavel_acao ? `Responsável: ${item.responsavel_acao}` : null,
+        item.data_prevista ? `Prevista: ${formatarDataBR(item.data_prevista)}` : null,
+        item.data_realizada ? `Realizada: ${formatarDataBR(item.data_realizada)}` : 'Realizada: pendente'
+      ].filter(Boolean).join('     ');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...(item.data_realizada ? COR_CONFORME : COR_NAO_CONFORME));
+      doc.text(meta, margemEsquerda + 4, y);
+      y += 5;
+
+      doc.setDrawColor(...COR_SUAVE);
+      doc.setLineWidth(0.15);
+      doc.rect(margemEsquerda, boxY - 4, larguraUtil, y - boxY + 1);
       y += 6;
     });
   }
