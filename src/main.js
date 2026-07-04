@@ -1,15 +1,17 @@
 import { criarEstadoInicial, montarTelaNovaVerificacao } from './telaNovaVerificacao.js';
 import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
 import { criarEstadoPlanoAcao, montarTelaPlanoAcao } from './telaPlanoAcao.js';
+import { criarEstadoPainel, montarTelaPainel } from './telaPainel.js';
 import { gerarPdfVerificacao } from './gerarPdf.js';
 import { obterVerificacao } from './api.js';
 
 const appEl = document.getElementById('app');
 
-let telaAtual = 'historico'; // historico | nova | plano
+let telaAtual = 'painel'; // painel | historico | nova | plano
 let estadoNovaVerificacao = criarEstadoInicial();
 let estadoHistorico = criarEstadoHistorico();
 let estadoPlanoAcao = criarEstadoPlanoAcao();
+let estadoPainel = criarEstadoPainel();
 
 function render() {
   appEl.innerHTML = '';
@@ -28,10 +30,12 @@ function render() {
   nav.style.padding = '12px 20px';
   nav.style.background = 'var(--cor-superficie)';
   nav.style.borderBottom = '1px solid var(--cor-borda)';
+  nav.style.overflowX = 'auto';
   nav.innerHTML = `
-    <button class="botao ${telaAtual === 'historico' ? 'botao--primario' : 'botao--secundario'}" data-tela="historico" style="flex:1;">Histórico</button>
-    <button class="botao ${telaAtual === 'nova' ? 'botao--primario' : 'botao--secundario'}" data-tela="nova" style="flex:1;">Nova</button>
-    <button class="botao ${telaAtual === 'plano' ? 'botao--primario' : 'botao--secundario'}" data-tela="plano" style="flex:1;">Plano de Ação</button>
+    <button class="botao ${telaAtual === 'painel' ? 'botao--primario' : 'botao--secundario'}" data-tela="painel" style="flex:1;white-space:nowrap;">Painel</button>
+    <button class="botao ${telaAtual === 'historico' ? 'botao--primario' : 'botao--secundario'}" data-tela="historico" style="flex:1;white-space:nowrap;">Histórico</button>
+    <button class="botao ${telaAtual === 'nova' ? 'botao--primario' : 'botao--secundario'}" data-tela="nova" style="flex:1;white-space:nowrap;">Nova</button>
+    <button class="botao ${telaAtual === 'plano' ? 'botao--primario' : 'botao--secundario'}" data-tela="plano" style="flex:1;white-space:nowrap;">Plano de Ação</button>
   `;
   nav.querySelectorAll('[data-tela]').forEach(botao => {
     botao.addEventListener('click', () => {
@@ -44,6 +48,9 @@ function render() {
       if (botao.dataset.tela === 'plano') {
         estadoPlanoAcao = criarEstadoPlanoAcao();
       }
+      if (botao.dataset.tela === 'painel') {
+        estadoPainel = criarEstadoPainel();
+      }
       telaAtual = botao.dataset.tela;
       render();
     });
@@ -53,7 +60,9 @@ function render() {
   const containerTela = document.createElement('div');
   appEl.appendChild(containerTela);
 
-  if (telaAtual === 'nova') {
+  if (telaAtual === 'painel') {
+    montarTelaPainel(containerTela, estadoPainel, salvarEstadoPainel, abrirVerificacaoOrigem);
+  } else if (telaAtual === 'nova') {
     montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
   } else if (telaAtual === 'plano') {
     montarTelaPlanoAcao(containerTela, estadoPlanoAcao, salvarEstadoPlanoAcao, abrirVerificacaoOrigem);
@@ -74,6 +83,11 @@ function salvarEstadoHistorico(novoEstado) {
 
 function salvarEstadoPlanoAcao(novoEstado) {
   estadoPlanoAcao = novoEstado;
+  render();
+}
+
+function salvarEstadoPainel(novoEstado) {
+  estadoPainel = novoEstado;
   render();
 }
 
@@ -102,7 +116,7 @@ function abrirPlanoDeVerificacao(verificacaoId) {
   render();
 }
 
-/* Plano de Ação -> Histórico (abre direto o detalhe da verificação de origem) */
+/* Plano de Ação / Painel -> Histórico (abre direto o detalhe da verificação de origem) */
 async function abrirVerificacaoOrigem(verificacaoId) {
   estadoHistorico = criarEstadoHistorico();
   estadoHistorico.verificacaoAberta = { id: verificacaoId, carregando: true };
