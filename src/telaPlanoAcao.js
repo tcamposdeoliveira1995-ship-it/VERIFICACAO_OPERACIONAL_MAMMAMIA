@@ -129,7 +129,7 @@ function renderLista(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   });
 }
 
-function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem) {
+export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem) {
   const cartao = document.createElement('div');
   cartao.className = 'cartao-item';
 
