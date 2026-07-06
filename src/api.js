@@ -65,8 +65,22 @@ export async function listarVerificacoes(filtros = {}) {
   });
 }
 
+export async function anexarDocumento(dados) {
+  await post('anexarDocumento', dados);
+}
+
 export async function obterVerificacao(id) {
   return get('obterVerificacao', { id });
+}
+
+/* Converte qualquer arquivo (ex: PDF) em base64 sem processamento de imagem */
+export function arquivoGenericoParaBase64(arquivo) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(leitor.result);
+    leitor.onerror = reject;
+    leitor.readAsDataURL(arquivo);
+  });
 }
 
 export async function listarNaoConformidades() {
