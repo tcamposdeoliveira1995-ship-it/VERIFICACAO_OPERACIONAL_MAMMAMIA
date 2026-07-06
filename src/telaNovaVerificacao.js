@@ -7,7 +7,9 @@ import {
   salvarTemperatura,
   removerTemperatura,
   finalizarVerificacao,
-  arquivoParaBase64
+  arquivoParaBase64,
+  arquivoGenericoParaBase64,
+  anexarDocumento
 } from './api.js';
 
 function hojeISO() {
@@ -27,7 +29,8 @@ export function criarEstadoInicial() {
     itens: ITENS_PADRAO.map(i => ({ ...i, status: null, descricao: '', fotosPreview: [] })),
     temperaturas: [],
     responsavelAuditoria: '',
-    responsavelEmpresa: ''
+    responsavelEmpresa: '',
+    documentoAnexado: false
   };
 }
 
@@ -164,6 +167,8 @@ function renderFormulario(container, estado, salvarEstado) {
   cabecalhoInfo.textContent = `${estado.empresa} · ${formatarDataBR(estado.data)} · ${estado.horarioInicio} · Folha ${estado.folha} · ${estado.responsavelVerificacao}`;
   div.appendChild(cabecalhoInfo);
 
+  div.appendChild(montarSecaoDocumento(estado, salvarEstado));
+
   // Cartões de item
   estado.itens.forEach(item => {
     div.appendChild(montarCartaoItem(item, estado, salvarEstado));
@@ -181,6 +186,59 @@ function renderFormulario(container, estado, salvarEstado) {
 function formatarDataBR(dataISO) {
   const [ano, mes, dia] = dataISO.split('-');
   return `${dia}/${mes}/${ano}`;
+}
+
+function montarSecaoDocumento(estado, salvarEstado) {
+  const secao = document.createElement('div');
+  secao.className = 'cartao-item';
+  secao.style.marginBottom = '16px';
+
+  if (estado.documentoAnexado) {
+    secao.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;color:var(--cor-conforme);font-weight:600;font-size:14px;">
+        ✓ Documento original anexado
+      </div>
+    `;
+    return secao;
+  }
+
+  secao.innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Documento original (opcional)</div>
+    <p style="font-size:13px;color:var(--cor-texto-suave);margin-bottom:12px;">Anexe o PDF da vistoria em papel/exportada, se houver.</p>
+    <button class="botao botao--secundario botao--bloco" id="botao-anexar-documento">Anexar PDF</button>
+    <input type="file" accept="application/pdf" style="display:none" id="input-documento" />
+  `;
+
+  const botao = secao.querySelector('#botao-anexar-documento');
+  const input = secao.querySelector('#input-documento');
+
+  botao.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const arquivo = input.files[0];
+    if (!arquivo) return;
+
+    botao.disabled = true;
+    botao.textContent = 'Enviando...';
+
+    try {
+      const base64 = await arquivoGenericoParaBase64(arquivo);
+      await anexarDocumento({
+        verificacao_id: estado.verificacaoId,
+        empresa: estado.empresa,
+        data: estado.data,
+        nomeArquivo: arquivo.name,
+        arquivoBase64: base64
+      });
+      estado.documentoAnexado = true;
+      salvarEstado(estado);
+    } catch (e) {
+      botao.disabled = false;
+      botao.textContent = 'Anexar PDF';
+      alert('Não foi possível anexar o documento. Tente novamente.');
+    }
+  });
+
+  return secao;
 }
 
 function montarCartaoItem(item, estado, salvarEstado) {
