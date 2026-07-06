@@ -159,9 +159,10 @@ function renderDetalhe(container, estado, salvarEstado, abrirPdf, abrirPlanoAcao
   cabecalho.innerHTML = `
     <span class="item-historico__empresa">${verificacao.empresa}</span>
     <h2 style="margin:6px 0;">${formatarDataBR(verificacao.data)}</h2>
-    <p style="color:var(--cor-texto-suave);margin-bottom:20px;">
+    <p style="color:var(--cor-texto-suave);margin-bottom:8px;">
       ${verificacao.horario_inicio} · Folha ${verificacao.folha} · Verificado por ${verificacao.responsavel_verificacao}
     </p>
+    ${verificacao.documento_url ? `<a href="${verificacao.documento_url}" target="_blank" style="color:var(--cor-dourado);font-size:13px;">📄 Ver documento original anexado</a>` : ''}
   `;
   div.appendChild(cabecalho);
 
