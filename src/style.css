@@ -1,26 +1,26 @@
 /* ============================================================
    VERIFICAÇÃO TÉCNICA OPERACIONAL — Design tokens
-   Paleta: charcoal + dourado (identidade Mamma Mia)
+   Paleta: creme + dourado (identidade Mamma Mia — TEMA CLARO)
    ============================================================ */
 
 :root {
   /* Cores base */
-  --cor-fundo: #171614;
-  --cor-superficie: #211f1c;
-  --cor-superficie-alta: #2b2925;
-  --cor-borda: #3a372f;
+  --cor-fundo: #faf8f4;
+  --cor-superficie: #ffffff;
+  --cor-superficie-alta: #f2efe7;
+  --cor-borda: #e2ddd0;
 
-  --cor-dourado: #c9a227;
-  --cor-dourado-claro: #e0c158;
+  --cor-dourado: #ab8620;
+  --cor-dourado-claro: #c9a227;
 
-  --cor-texto: #f2efe9;
-  --cor-texto-suave: #a8a29b;
-  --cor-texto-fraco: #6f6b62;
+  --cor-texto: #211f1c;
+  --cor-texto-suave: #6f6b62;
+  --cor-texto-fraco: #a8a29b;
 
-  --cor-conforme: #4c9a6a;
-  --cor-conforme-fundo: rgba(76, 154, 106, 0.14);
-  --cor-nao-conforme: #d6544a;
-  --cor-nao-conforme-fundo: rgba(214, 84, 74, 0.14);
+  --cor-conforme: #2f7a4d;
+  --cor-conforme-fundo: rgba(47, 122, 77, 0.10);
+  --cor-nao-conforme: #b8392f;
+  --cor-nao-conforme-fundo: rgba(184, 57, 47, 0.10);
 
   /* Tipografia */
   --fonte-display: 'Fraunces', Georgia, serif;
@@ -36,7 +36,7 @@
   --raio: 10px;
   --raio-pequeno: 6px;
 
-  --sombra: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --sombra: 0 4px 16px rgba(33, 31, 28, 0.10);
 }
 
 * {
@@ -104,6 +104,7 @@ input::placeholder, textarea::placeholder {
   background: var(--cor-superficie);
   border-bottom: 1px solid var(--cor-borda);
   padding: var(--espaco-md);
+  box-shadow: var(--sombra);
 }
 
 .cabecalho-app__marca {
@@ -140,7 +141,7 @@ input::placeholder, textarea::placeholder {
 
 .botao--primario {
   background: var(--cor-dourado);
-  color: #17160f;
+  color: #ffffff;
 }
 
 .botao--primario:disabled {
@@ -185,8 +186,8 @@ input::placeholder, textarea::placeholder {
 
 .seletor-empresa__opcao--ativa {
   border-color: var(--cor-dourado);
-  background: rgba(201, 162, 39, 0.1);
-  color: var(--cor-dourado-claro);
+  background: rgba(171, 134, 32, 0.08);
+  color: var(--cor-dourado);
 }
 
 /* ---------- Trilha de progresso (assinatura visual) ---------- */
@@ -224,6 +225,7 @@ input::placeholder, textarea::placeholder {
   border-radius: var(--raio);
   padding: var(--espaco-md);
   margin-bottom: var(--espaco-sm);
+  box-shadow: var(--sombra);
 }
 
 .cartao-item__cabecalho {
@@ -325,6 +327,7 @@ input::placeholder, textarea::placeholder {
   background: var(--cor-superficie);
   border-top: 1px solid var(--cor-borda);
   padding: var(--espaco-md);
+  box-shadow: 0 -4px 16px rgba(33, 31, 28, 0.08);
 }
 
 /* ---------- Campo de temperatura ---------- */
