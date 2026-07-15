@@ -206,6 +206,17 @@ function renderDetalhe(container, estado, salvarEstado, abrirPdf, abrirPlanoAcao
     div.appendChild(secaoTemp);
   }
 
+  if (verificacao.observacao) {
+    const observacao = document.createElement('div');
+    observacao.style.marginTop = '20px';
+    observacao.className = 'cartao-item';
+    observacao.innerHTML = `
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Observação</div>
+      <p style="color:var(--cor-texto-suave);white-space:pre-wrap;">${verificacao.observacao}</p>
+    `;
+    div.appendChild(observacao);
+  }
+
   if (verificacao.responsavel_auditoria) {
     const assinaturas = document.createElement('div');
     assinaturas.style.marginTop = '20px';
