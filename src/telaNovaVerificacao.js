@@ -30,6 +30,7 @@ export function criarEstadoInicial() {
     temperaturas: [],
     responsavelAuditoria: '',
     responsavelEmpresa: '',
+    observacao: '',
     documentoAnexado: false
   };
 }
@@ -394,16 +395,22 @@ function montarSecaoFinalizacao(estado, salvarEstado) {
       <label>Responsável pela empresa</label>
       <input type="text" id="campo-resp-empresa" placeholder="Nome" value="${estado.responsavelEmpresa}" />
     </div>
+    <div class="campo">
+      <label>Observação (opcional)</label>
+      <textarea id="campo-observacao" rows="3" placeholder="Alguma observação sobre esta verificação...">${estado.observacao}</textarea>
+    </div>
     <button class="botao botao--primario botao--bloco" id="botao-finalizar">Confirmar e finalizar</button>
   `;
 
   const campoAuditoria = secao.querySelector('#campo-resp-auditoria');
   const campoEmpresa = secao.querySelector('#campo-resp-empresa');
+  const campoObservacao = secao.querySelector('#campo-observacao');
   const botaoFinalizar = secao.querySelector('#botao-finalizar');
 
   botaoFinalizar.addEventListener('click', async () => {
     estado.responsavelAuditoria = campoAuditoria.value.trim();
     estado.responsavelEmpresa = campoEmpresa.value.trim();
+    estado.observacao = campoObservacao.value.trim();
 
     if (!estado.responsavelAuditoria || !estado.responsavelEmpresa) {
       alert('Preencha os dois responsáveis para finalizar.');
@@ -423,6 +430,7 @@ function montarSecaoFinalizacao(estado, salvarEstado) {
       verificacao_id: estado.verificacaoId,
       responsavel_auditoria: estado.responsavelAuditoria,
       responsavel_empresa: estado.responsavelEmpresa,
+      observacao: estado.observacao,
       confirmado_em: new Date().toISOString()
     });
 
