@@ -200,6 +200,25 @@ export function gerarPdfVerificacao(dados) {
     });
   }
 
+  /* ---------- Observação ---------- */
+  if (verificacao.observacao) {
+    novaPaginaSeNecessario(16);
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COR_TEXTO);
+    doc.text('Observação', margemEsquerda, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...COR_SUAVE);
+    const linhasObservacao = doc.splitTextToSize(verificacao.observacao, larguraUtil);
+    novaPaginaSeNecessario(linhasObservacao.length * 4.4);
+    doc.text(linhasObservacao, margemEsquerda, y);
+    y += linhasObservacao.length * 4.4;
+  }
+
   /* ---------- Assinaturas ---------- */
   novaPaginaSeNecessario(30);
   y += 10;
