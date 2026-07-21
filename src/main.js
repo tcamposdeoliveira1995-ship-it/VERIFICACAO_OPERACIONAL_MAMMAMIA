@@ -15,32 +15,29 @@ let estadoPlanoAcao = criarEstadoPlanoAcao();
 let estadoPainel = criarEstadoPainel();
 let estadoDash = criarEstadoDash();
 
+const ITENS_MENU = [
+  { tela: 'painel', rotulo: 'Painel', icone: '🏠' },
+  { tela: 'dash', rotulo: 'Dash', icone: '📊' },
+  { tela: 'historico', rotulo: 'Histórico', icone: '🕘' },
+  { tela: 'nova', rotulo: 'Nova', icone: '➕' },
+  { tela: 'plano', rotulo: 'Plano de Ação', icone: '✅' }
+];
+
 function render() {
   appEl.innerHTML = '';
 
-  const cabecalho = document.createElement('div');
-  cabecalho.className = 'cabecalho-app';
-  cabecalho.innerHTML = `
-    <div class="cabecalho-app__marca">Mamma Mia · R&L Qualidade</div>
-    <div class="cabecalho-app__titulo">Verificação Técnica Operacional</div>
+  const sidebar = document.createElement('div');
+  sidebar.className = 'sidebar';
+  sidebar.innerHTML = `
+    <div class="sidebar__marca">Mamma Mia<br>R&L Qualidade</div>
+    ${ITENS_MENU.map(item => `
+      <button class="sidebar__botao ${telaAtual === item.tela ? 'sidebar__botao--ativo' : ''}" data-tela="${item.tela}">
+        <span class="sidebar__icone">${item.icone}</span>
+        <span>${item.rotulo}</span>
+      </button>
+    `).join('')}
   `;
-  appEl.appendChild(cabecalho);
-
-  const nav = document.createElement('div');
-  nav.style.display = 'flex';
-  nav.style.gap = '8px';
-  nav.style.padding = '12px 20px';
-  nav.style.background = 'var(--cor-superficie)';
-  nav.style.borderBottom = '1px solid var(--cor-borda)';
-  nav.style.overflowX = 'auto';
-  nav.innerHTML = `
-    <button class="botao ${telaAtual === 'painel' ? 'botao--primario' : 'botao--secundario'}" data-tela="painel" style="flex:1;white-space:nowrap;">Painel</button>
-    <button class="botao ${telaAtual === 'dash' ? 'botao--primario' : 'botao--secundario'}" data-tela="dash" style="flex:1;white-space:nowrap;">Dash</button>
-    <button class="botao ${telaAtual === 'historico' ? 'botao--primario' : 'botao--secundario'}" data-tela="historico" style="flex:1;white-space:nowrap;">Histórico</button>
-    <button class="botao ${telaAtual === 'nova' ? 'botao--primario' : 'botao--secundario'}" data-tela="nova" style="flex:1;white-space:nowrap;">Nova</button>
-    <button class="botao ${telaAtual === 'plano' ? 'botao--primario' : 'botao--secundario'}" data-tela="plano" style="flex:1;white-space:nowrap;">Plano de Ação</button>
-  `;
-  nav.querySelectorAll('[data-tela]').forEach(botao => {
+  sidebar.querySelectorAll('[data-tela]').forEach(botao => {
     botao.addEventListener('click', () => {
       if (botao.dataset.tela === 'nova') {
         estadoNovaVerificacao = criarEstadoInicial();
@@ -61,10 +58,14 @@ function render() {
       render();
     });
   });
-  appEl.appendChild(nav);
+  appEl.appendChild(sidebar);
+
+  const areaConteudo = document.createElement('div');
+  areaConteudo.className = 'area-conteudo';
+  appEl.appendChild(areaConteudo);
 
   const containerTela = document.createElement('div');
-  appEl.appendChild(containerTela);
+  areaConteudo.appendChild(containerTela);
 
   if (telaAtual === 'painel') {
     montarTelaPainel(containerTela, estadoPainel, salvarEstadoPainel, abrirVerificacaoOrigem);
