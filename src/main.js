@@ -16,11 +16,11 @@ let estadoPainel = criarEstadoPainel();
 let estadoDash = criarEstadoDash();
 
 const ITENS_MENU = [
-  { tela: 'painel', rotulo: 'Painel', icone: '🏠' },
   { tela: 'dash', rotulo: 'Dash', icone: '📊' },
-  { tela: 'historico', rotulo: 'Histórico', icone: '🕘' },
+  { tela: 'painel', rotulo: 'Painel', icone: '🏠' },
   { tela: 'nova', rotulo: 'Nova', icone: '➕' },
-  { tela: 'plano', rotulo: 'Plano de Ação', icone: '✅' }
+  { tela: 'plano', rotulo: 'Plano de Ação', icone: '✅' },
+  { tela: 'historico', rotulo: 'Histórico', icone: '🕘' }
 ];
 
 function render() {
