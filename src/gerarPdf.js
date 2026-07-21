@@ -6,9 +6,11 @@ const COR_SUAVE = [110, 105, 96];
 const COR_CONFORME = [60, 120, 85];
 const COR_NAO_CONFORME = [180, 55, 45];
 
-export function gerarPdfVerificacao(dados) {
+/* Desenha o conteúdo completo de UMA verificação (relatório + plano de ação + assinaturas)
+   dentro de um doc jsPDF já existente, a partir do topo da página atual.
+   Usado tanto pelo PDF individual quanto pelo PDF consolidado (várias visitas num arquivo só). */
+function renderizarVerificacao(doc, dados) {
   const { verificacao, itens, temperaturas } = dados;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const margemEsquerda = 16;
   const margemDireita = 16;
@@ -267,9 +269,32 @@ export function gerarPdfVerificacao(dados) {
     doc.setTextColor(...COR_SUAVE);
     doc.text(`Confirmado em ${formatarDataHoraBR(verificacao.confirmado_em)}`, margemEsquerda, y);
   }
+}
 
+export function gerarPdfVerificacao(dados) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  renderizarVerificacao(doc, dados);
+
+  const { verificacao } = dados;
   const nomeArquivo = `Verificacao_${verificacao.empresa}_${verificacao.data}_Folha${verificacao.folha}.pdf`;
   doc.save(nomeArquivo);
+}
+
+/* Gera UM único PDF juntando várias verificações (ex: todas as folhas de uma empresa numa data),
+   cada uma com relatório + plano de ação + assinaturas, cada visita começando numa página nova. */
+export function gerarPdfConsolidado(listaDeDados, nomeArquivo) {
+  if (!listaDeDados || listaDeDados.length === 0) return;
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  listaDeDados.forEach((dados, indice) => {
+    if (indice > 0) doc.addPage();
+    renderizarVerificacao(doc, dados);
+  });
+
+  const primeira = listaDeDados[0].verificacao;
+  const arquivoFinal = nomeArquivo || `Verificacao_${primeira.empresa}_${primeira.data}.pdf`;
+  doc.save(arquivoFinal);
 }
 
 function formatarDataBR(dataISO) {
@@ -280,6 +305,7 @@ function formatarDataBR(dataISO) {
 }
 
 function formatarDataHoraBR(isoString) {
+  if (!isoString) return '';
   const d = new Date(isoString);
   return d.toLocaleString('pt-BR');
 }
