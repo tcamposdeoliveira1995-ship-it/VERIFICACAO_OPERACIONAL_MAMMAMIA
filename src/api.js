@@ -91,6 +91,10 @@ export async function salvarPlanoAcao(dados) {
   await post('salvarPlanoAcao', dados);
 }
 
+export async function assinarPlanoAcao(dados) {
+  await post('assinarPlanoAcao', dados);
+}
+
 /* Converte um arquivo (File) em base64, redimensionando e comprimindo
    (fotos de celular costumam vir muito grandes para enviar direto) */
 export function arquivoParaBase64(arquivo, larguraMaxima = 1280, qualidade = 0.72) {
