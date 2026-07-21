@@ -240,10 +240,10 @@ function svgLinhaTempo(pontos) {
 
 function svgBarrasHorizontais(itens, opcoes = {}) {
   const largura = 340;
-  const alturaBarra = 9;
-  const espacoItem = 30;
+  const alturaBarra = 10;
+  const espacoItem = 48;
   const max = opcoes.maxValor || Math.max(...itens.map(i => i.valor), 1);
-  const alturaSvg = itens.length * espacoItem + 4;
+  const alturaSvg = itens.length * espacoItem + 6;
 
   let svg = `<svg viewBox="0 0 ${largura} ${alturaSvg}" width="100%" style="display:block;">`;
   itens.forEach((item, i) => {
@@ -253,10 +253,10 @@ function svgBarrasHorizontais(itens, opcoes = {}) {
     const cor = opcoes.cor ? opcoes.cor(item, i) : 'var(--cor-dourado)';
     const valorFormatado = opcoes.formatarValor ? opcoes.formatarValor(item) : item.valor;
     svg += `
-      <text x="0" y="${y + 9}" font-size="10.5" fill="var(--cor-texto)" font-family="var(--fonte-corpo)">${escaparTexto(item.label)}</text>
-      <rect x="0" y="${y + 13}" width="${larguraMaxBarra}" height="${alturaBarra}" rx="3" fill="var(--cor-superficie-alta)"></rect>
-      <rect x="0" y="${y + 13}" width="${larguraBarra}" height="${alturaBarra}" rx="3" fill="${cor}"></rect>
-      <text x="0" y="${y + 13 + alturaBarra + 9}" font-size="9" fill="var(--cor-texto-suave)">${escaparTexto(String(valorFormatado))}</text>
+      <text x="0" y="${y + 11}" font-size="11" fill="var(--cor-texto)" font-family="var(--fonte-corpo)">${escaparTexto(item.label)}</text>
+      <rect x="0" y="${y + 18}" width="${larguraMaxBarra}" height="${alturaBarra}" rx="3" fill="var(--cor-superficie-alta)"></rect>
+      <rect x="0" y="${y + 18}" width="${larguraBarra}" height="${alturaBarra}" rx="3" fill="${cor}"></rect>
+      <text x="0" y="${y + 18 + alturaBarra + 13}" font-size="9.5" fill="var(--cor-texto-suave)">${escaparTexto(String(valorFormatado))}</text>
     `;
   });
   svg += `</svg>`;
