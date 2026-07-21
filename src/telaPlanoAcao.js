@@ -1,4 +1,4 @@
-import { listarNaoConformidades, salvarPlanoAcao } from './api.js';
+import { listarNaoConformidades, salvarPlanoAcao, assinarPlanoAcao, obterVerificacao } from './api.js';
 import { EMPRESAS } from './config.js';
 import { gerarPdfPlanoAcao, gerarPdfNaoConformidade } from './gerarPdf.js';
 
@@ -8,7 +8,9 @@ export function criarEstadoPlanoAcao() {
     carregando: true,
     filtroEmpresa: '',
     filtroStatus: '', // '' | 'pendente' | 'concluido'
-    filtroVerificacaoId: null // quando definido, mostra só as NCs dessa verificação
+    filtroVerificacaoId: null, // quando definido, mostra só as NCs dessa verificação
+    assinatura: null, // { responsavel_verificacao, responsavel_plano_acao, assinatura_plano_acao_em }
+    carregandoAssinatura: false
   };
 }
 
@@ -29,6 +31,8 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
     <h2 style="margin-bottom:16px;">Plano de Ação</h2>
 
     ${avisoFiltro}
+
+    <div id="bloco-assinatura-plano"></div>
 
     <div class="linha" style="margin-bottom:12px;">
       <select id="filtro-empresa-plano" style="flex:1;">
@@ -52,6 +56,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   if (botaoLimparFiltro) {
     botaoLimparFiltro.addEventListener('click', () => {
       estado.filtroVerificacaoId = null;
+      estado.assinatura = null;
       salvarEstado(estado);
     });
   }
@@ -64,6 +69,24 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
     }
     gerarPdfPlanoAcao(listaFiltrada);
   });
+
+  const blocoAssinatura = div.querySelector('#bloco-assinatura-plano');
+  if (estado.filtroVerificacaoId) {
+    renderAssinatura(blocoAssinatura, estado, salvarEstado);
+    if (!estado.assinatura && !estado.carregandoAssinatura) {
+      estado.carregandoAssinatura = true;
+      const detalhe = await obterVerificacao(estado.filtroVerificacaoId);
+      if (!detalhe.erro) {
+        estado.assinatura = {
+          responsavel_verificacao: detalhe.verificacao.responsavel_verificacao || '',
+          responsavel_plano_acao: detalhe.verificacao.responsavel_plano_acao || '',
+          assinatura_plano_acao_em: detalhe.verificacao.assinatura_plano_acao_em || ''
+        };
+      }
+      estado.carregandoAssinatura = false;
+      renderAssinatura(blocoAssinatura, estado, salvarEstado);
+    }
+  }
 
   const listaPlano = div.querySelector('#lista-plano');
   renderLista(listaPlano, estado, salvarEstado, abrirVerificacaoOrigem);
@@ -92,6 +115,75 @@ function formatarDataBR(dataISO) {
   const [ano, mes, dia] = dataISO.split('-');
   if (!ano || !mes || !dia) return dataISO;
   return `${dia}/${mes}/${ano}`;
+}
+
+function formatarDataHoraBR(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return d.toLocaleString('pt-BR');
+}
+
+function renderAssinatura(container, estado, salvarEstado) {
+  if (!container) return;
+
+  if (estado.carregandoAssinatura || !estado.assinatura) {
+    container.innerHTML = `<div class="estado-vazio" style="margin-bottom:16px;">Carregando assinatura...</div>`;
+    return;
+  }
+
+  const { responsavel_verificacao, responsavel_plano_acao, assinatura_plano_acao_em } = estado.assinatura;
+
+  if (assinatura_plano_acao_em) {
+    container.innerHTML = `
+      <div class="cartao-item" style="margin-bottom:16px;border-color:var(--cor-conforme);">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;color:var(--cor-conforme);">✓ Plano de Ação assinado</div>
+        <div style="font-size:13px;color:var(--cor-texto-suave);">
+          Assinado por <strong style="color:var(--cor-texto);">${responsavel_plano_acao}</strong> em ${formatarDataHoraBR(assinatura_plano_acao_em)}
+        </div>
+        <button class="botao botao--secundario" id="botao-reassinar-plano" style="margin-top:10px;">Assinar novamente</button>
+      </div>
+    `;
+    container.querySelector('#botao-reassinar-plano').addEventListener('click', () => {
+      estado.assinatura.assinatura_plano_acao_em = '';
+      salvarEstado(estado);
+    });
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="cartao-item" style="margin-bottom:16px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Assinatura do Plano de Ação</div>
+      <div class="campo" style="margin-bottom:8px;">
+        <label>Nome do responsável</label>
+        <input type="text" id="campo-assinatura-plano" placeholder="Nome" value="${responsavel_plano_acao || responsavel_verificacao || ''}" />
+      </div>
+      <button class="botao botao--primario botao--bloco" id="botao-assinar-plano">Confirmar assinatura</button>
+    </div>
+  `;
+
+  container.querySelector('#botao-assinar-plano').addEventListener('click', async () => {
+    const campo = container.querySelector('#campo-assinatura-plano');
+    const nome = campo.value.trim();
+    if (!nome) {
+      alert('Preencha o nome do responsável para assinar.');
+      return;
+    }
+
+    const botao = container.querySelector('#botao-assinar-plano');
+    botao.disabled = true;
+    botao.textContent = 'Assinando...';
+
+    const agora = new Date().toISOString();
+    await assinarPlanoAcao({
+      verificacao_id: estado.filtroVerificacaoId,
+      responsavel_plano_acao: nome,
+      assinatura_plano_acao_em: agora
+    });
+
+    estado.assinatura.responsavel_plano_acao = nome;
+    estado.assinatura.assinatura_plano_acao_em = agora;
+    salvarEstado(estado);
+  });
 }
 
 function filtrarLista(estado) {
