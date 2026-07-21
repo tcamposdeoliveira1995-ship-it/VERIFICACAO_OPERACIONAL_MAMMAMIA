@@ -43,16 +43,16 @@ export async function montarTelaHistorico(container, estado, salvarEstado, novaV
   container.appendChild(div);
 
   const listaResultado = div.querySelector('#lista-resultado');
-  renderLista(listaResultado, estado, salvarEstado);
+  renderLista(listaResultado, estado, salvarEstado, abrirPdf);
 
   const aplicarFiltro = async () => {
     estado.filtroEmpresa = div.querySelector('#filtro-empresa').value;
     estado.filtroDataInicio = div.querySelector('#filtro-data-inicio').value;
     estado.filtroDataFim = div.querySelector('#filtro-data-fim').value;
     estado.carregando = true;
-    renderLista(listaResultado, estado, salvarEstado);
+    renderLista(listaResultado, estado, salvarEstado, abrirPdf);
     await carregarLista(estado);
-    renderLista(listaResultado, estado, salvarEstado);
+    renderLista(listaResultado, estado, salvarEstado, abrirPdf);
   };
 
   div.querySelector('#filtro-empresa').addEventListener('change', aplicarFiltro);
@@ -61,7 +61,7 @@ export async function montarTelaHistorico(container, estado, salvarEstado, novaV
 
   if (estado.carregando) {
     await carregarLista(estado);
-    renderLista(listaResultado, estado, salvarEstado);
+    renderLista(listaResultado, estado, salvarEstado, abrirPdf);
   }
 
   const botaoNova = document.createElement('div');
@@ -84,7 +84,7 @@ async function carregarLista(estado) {
   estado.carregando = false;
 }
 
-function renderLista(container, estado, salvarEstado) {
+function renderLista(container, estado, salvarEstado, abrirPdf) {
   if (estado.carregando) {
     container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
     return;
@@ -99,8 +99,16 @@ function renderLista(container, estado, salvarEstado) {
   estado.lista.forEach(v => {
     const item = document.createElement('div');
     item.className = 'item-historico';
-    item.style.cursor = 'pointer';
-    item.innerHTML = `
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'stretch';
+    item.style.gap = '10px';
+
+    const linhaAbrir = document.createElement('div');
+    linhaAbrir.style.display = 'flex';
+    linhaAbrir.style.justifyContent = 'space-between';
+    linhaAbrir.style.alignItems = 'center';
+    linhaAbrir.style.cursor = 'pointer';
+    linhaAbrir.innerHTML = `
       <div>
         <span class="item-historico__empresa">${v.empresa}</span>
         <div class="item-historico__data">${formatarDataBR(v.data)}</div>
@@ -108,16 +116,35 @@ function renderLista(container, estado, salvarEstado) {
       </div>
       <div style="color:var(--cor-texto-fraco);font-size:20px;">›</div>
     `;
-    item.addEventListener('click', async () => {
+    linhaAbrir.addEventListener('click', async () => {
       estado.verificacaoAberta = { id: v.id, carregando: true };
       salvarEstado(estado);
       const detalhe = await obterVerificacao(v.id);
       estado.verificacaoAberta = { id: v.id, carregando: false, dados: detalhe };
       salvarEstado(estado);
     });
+    item.appendChild(linhaAbrir);
+
+    const botaoPdf = document.createElement('button');
+    botaoPdf.className = 'botao botao--secundario botao--bloco';
+    botaoPdf.textContent = 'Gerar PDF';
+    botaoPdf.addEventListener('click', async () => {
+      botaoPdf.disabled = true;
+      botaoPdf.textContent = 'Gerando...';
+      try {
+        const detalhe = await obterVerificacao(v.id);
+        abrirPdf(detalhe);
+      } finally {
+        botaoPdf.disabled = false;
+        botaoPdf.textContent = 'Gerar PDF';
+      }
+    });
+    item.appendChild(botaoPdf);
+
     container.appendChild(item);
   });
 }
+
 
 function formatarDataBR(dataISO) {
   if (!dataISO) return '';
