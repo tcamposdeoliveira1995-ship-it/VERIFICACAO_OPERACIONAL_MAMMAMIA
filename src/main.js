@@ -2,16 +2,18 @@ import { criarEstadoInicial, montarTelaNovaVerificacao } from './telaNovaVerific
 import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
 import { criarEstadoPlanoAcao, montarTelaPlanoAcao } from './telaPlanoAcao.js';
 import { criarEstadoPainel, montarTelaPainel } from './telaPainel.js';
+import { criarEstadoDash, montarTelaDash } from './telaDash.js';
 import { gerarPdfVerificacao } from './gerarPdf.js';
 import { obterVerificacao } from './api.js';
 
 const appEl = document.getElementById('app');
 
-let telaAtual = 'painel'; // painel | historico | nova | plano
+let telaAtual = 'painel'; // painel | historico | nova | plano | dash
 let estadoNovaVerificacao = criarEstadoInicial();
 let estadoHistorico = criarEstadoHistorico();
 let estadoPlanoAcao = criarEstadoPlanoAcao();
 let estadoPainel = criarEstadoPainel();
+let estadoDash = criarEstadoDash();
 
 function render() {
   appEl.innerHTML = '';
@@ -33,6 +35,7 @@ function render() {
   nav.style.overflowX = 'auto';
   nav.innerHTML = `
     <button class="botao ${telaAtual === 'painel' ? 'botao--primario' : 'botao--secundario'}" data-tela="painel" style="flex:1;white-space:nowrap;">Painel</button>
+    <button class="botao ${telaAtual === 'dash' ? 'botao--primario' : 'botao--secundario'}" data-tela="dash" style="flex:1;white-space:nowrap;">Dash</button>
     <button class="botao ${telaAtual === 'historico' ? 'botao--primario' : 'botao--secundario'}" data-tela="historico" style="flex:1;white-space:nowrap;">Histórico</button>
     <button class="botao ${telaAtual === 'nova' ? 'botao--primario' : 'botao--secundario'}" data-tela="nova" style="flex:1;white-space:nowrap;">Nova</button>
     <button class="botao ${telaAtual === 'plano' ? 'botao--primario' : 'botao--secundario'}" data-tela="plano" style="flex:1;white-space:nowrap;">Plano de Ação</button>
@@ -51,6 +54,9 @@ function render() {
       if (botao.dataset.tela === 'painel') {
         estadoPainel = criarEstadoPainel();
       }
+      if (botao.dataset.tela === 'dash') {
+        estadoDash = criarEstadoDash();
+      }
       telaAtual = botao.dataset.tela;
       render();
     });
@@ -62,6 +68,8 @@ function render() {
 
   if (telaAtual === 'painel') {
     montarTelaPainel(containerTela, estadoPainel, salvarEstadoPainel, abrirVerificacaoOrigem);
+  } else if (telaAtual === 'dash') {
+    montarTelaDash(containerTela, estadoDash, salvarEstadoDash);
   } else if (telaAtual === 'nova') {
     montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
   } else if (telaAtual === 'plano') {
@@ -88,6 +96,11 @@ function salvarEstadoPlanoAcao(novoEstado) {
 
 function salvarEstadoPainel(novoEstado) {
   estadoPainel = novoEstado;
+  render();
+}
+
+function salvarEstadoDash(novoEstado) {
+  estadoDash = novoEstado;
   render();
 }
 
