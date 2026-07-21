@@ -198,6 +198,23 @@ export function gerarPdfVerificacao(dados) {
       doc.rect(margemEsquerda, boxY - 4, larguraUtil, y - boxY + 1);
       y += 6;
     });
+
+    novaPaginaSeNecessario(10);
+    if (verificacao.assinatura_plano_acao_em) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...COR_CONFORME);
+      doc.text(
+        `Plano de Ação assinado por: ${verificacao.responsavel_plano_acao} em ${formatarDataHoraBR(verificacao.assinatura_plano_acao_em)}`,
+        margemEsquerda, y
+      );
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...COR_SUAVE);
+      doc.text('Assinatura do responsável pelo Plano de Ação: ______________________________', margemEsquerda, y);
+    }
+    y += 8;
   }
 
   /* ---------- Observação ---------- */
