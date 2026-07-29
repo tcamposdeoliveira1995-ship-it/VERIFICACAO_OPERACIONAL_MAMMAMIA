@@ -1,12 +1,15 @@
 import { listarNaoConformidades } from './api.js';
 import { EMPRESAS } from './config.js';
-import { montarCartaoNC } from './telaPlanoAcao.js';
+import { montarCartaoNC, extrairPrioridade } from './telaPlanoAcao.js';
+
+const PRIORIDADES = ['ALTA', 'MÉDIA', 'BAIXA'];
 
 export function criarEstadoPainel() {
   return {
     lista: [],
     carregando: true,
-    mostrarConcluidas: false
+    mostrarConcluidas: false,
+    filtroPrioridade: '' // '' | 'ALTA' | 'MÉDIA' | 'BAIXA'
   };
 }
 
@@ -24,6 +27,10 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
         <input type="checkbox" id="toggle-concluidas" ${estado.mostrarConcluidas ? 'checked' : ''} style="width:auto;" />
         Mostrar também as já concluídas
       </label>
+      <select id="filtro-prioridade-painel" style="max-width:220px;">
+        <option value="">Todas as prioridades</option>
+        ${PRIORIDADES.map(p => `<option value="${p}" ${estado.filtroPrioridade === p ? 'selected' : ''}>${p}</option>`).join('')}
+      </select>
     </div>
 
     <div id="grupos-painel"></div>
@@ -35,6 +42,11 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
 
   div.querySelector('#toggle-concluidas').addEventListener('change', e => {
     estado.mostrarConcluidas = e.target.checked;
+    salvarEstado(estado);
+  });
+
+  div.querySelector('#filtro-prioridade-painel').addEventListener('change', e => {
+    estado.filtroPrioridade = e.target.value;
     salvarEstado(estado);
   });
 
@@ -62,9 +74,10 @@ function renderGrupos(container, estado, salvarEstado, abrirVerificacaoOrigem) {
     return;
   }
 
-  const lista = estado.mostrarConcluidas
+  const lista = (estado.mostrarConcluidas
     ? estado.lista
-    : estado.lista.filter(nc => !nc.data_realizada);
+    : estado.lista.filter(nc => !nc.data_realizada)
+  ).filter(nc => !estado.filtroPrioridade || extrairPrioridade(nc.acao_corretiva) === estado.filtroPrioridade);
 
   if (lista.length === 0) {
     container.innerHTML = `<div class="estado-vazio">Nenhuma não conformidade pendente. 🎉</div>`;
