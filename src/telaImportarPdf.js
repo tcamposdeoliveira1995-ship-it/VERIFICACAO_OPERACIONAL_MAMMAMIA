@@ -344,25 +344,33 @@ async function salvarImportacao(estado, salvarEstado, irParaPlanoAcao) {
     timestamp_criacao: new Date().toISOString()
   });
 
-  await Promise.all(estado.itensRevisao.map(item => salvarItem({
-    verificacao_id: verificacaoId,
-    numero_item: item.numero,
-    nome_item: item.nome,
-    status: item.status,
-    descricao: item.status === 'NC' ? item.descricao : '',
-    empresa: estado.empresa,
-    data: estado.data
-  })));
+  // Gravação sequencial (uma requisição por vez) — o Apps Script não é
+  // seguro para escritas concorrentes na planilha; em paralelo, algumas
+  // linhas eram perdidas silenciosamente (o fetch usa no-cors, então o
+  // navegador nunca via o erro).
+  for (const item of estado.itensRevisao) {
+    await salvarItem({
+      verificacao_id: verificacaoId,
+      numero_item: item.numero,
+      nome_item: item.nome,
+      status: item.status,
+      descricao: item.status === 'NC' ? item.descricao : '',
+      empresa: estado.empresa,
+      data: estado.data
+    });
+  }
 
   const itensNC = estado.itensRevisao.filter(item => item.status === 'NC');
-  await Promise.all(itensNC.map(item => salvarPlanoAcao({
-    verificacao_id: verificacaoId,
-    numero_item: item.numero,
-    acao_corretiva: `[${item.prioridade}] ${item.acaoCorretiva}`,
-    responsavel: '',
-    data_prevista: '',
-    data_realizada: ''
-  })));
+  for (const item of itensNC) {
+    await salvarPlanoAcao({
+      verificacao_id: verificacaoId,
+      numero_item: item.numero,
+      acao_corretiva: `[${item.prioridade}] ${item.acaoCorretiva}`,
+      responsavel: '',
+      data_prevista: '',
+      data_realizada: ''
+    });
+  }
 
   if (estado.arquivoOriginal) {
     try {
