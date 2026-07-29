@@ -3,22 +3,25 @@ import { criarEstadoHistorico, montarTelaHistorico } from './telaHistorico.js';
 import { criarEstadoPlanoAcao, montarTelaPlanoAcao } from './telaPlanoAcao.js';
 import { criarEstadoPainel, montarTelaPainel } from './telaPainel.js';
 import { criarEstadoDash, montarTelaDash } from './telaDash.js';
+import { criarEstadoImportarPdf, montarTelaImportarPdf } from './telaImportarPdf.js';
 import { gerarPdfVerificacao } from './gerarPdf.js';
 import { obterVerificacao } from './api.js';
 
 const appEl = document.getElementById('app');
 
-let telaAtual = 'painel'; // painel | historico | nova | plano | dash
+let telaAtual = 'painel'; // painel | historico | nova | plano | dash | importar
 let estadoNovaVerificacao = criarEstadoInicial();
 let estadoHistorico = criarEstadoHistorico();
 let estadoPlanoAcao = criarEstadoPlanoAcao();
 let estadoPainel = criarEstadoPainel();
 let estadoDash = criarEstadoDash();
+let estadoImportarPdf = criarEstadoImportarPdf();
 
 const ITENS_MENU = [
   { tela: 'dash', rotulo: 'Dash', icone: '📊' },
   { tela: 'painel', rotulo: 'Painel', icone: '🏠' },
   { tela: 'nova', rotulo: 'Nova', icone: '➕' },
+  { tela: 'importar', rotulo: 'Importar PDF', icone: '📄' },
   { tela: 'plano', rotulo: 'Plano de Ação', icone: '✅' },
   { tela: 'historico', rotulo: 'Histórico', icone: '🕘' }
 ];
@@ -54,6 +57,9 @@ function render() {
       if (botao.dataset.tela === 'dash') {
         estadoDash = criarEstadoDash();
       }
+      if (botao.dataset.tela === 'importar') {
+        estadoImportarPdf = criarEstadoImportarPdf();
+      }
       telaAtual = botao.dataset.tela;
       render();
     });
@@ -75,6 +81,8 @@ function render() {
     montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
   } else if (telaAtual === 'plano') {
     montarTelaPlanoAcao(containerTela, estadoPlanoAcao, salvarEstadoPlanoAcao, abrirVerificacaoOrigem);
+  } else if (telaAtual === 'importar') {
+    montarTelaImportarPdf(containerTela, estadoImportarPdf, salvarEstadoImportarPdf, abrirPlanoDeVerificacao);
   } else {
     montarTelaHistorico(containerTela, estadoHistorico, salvarEstadoHistorico, irParaNovaVerificacao, abrirPdf, abrirPlanoDeVerificacao);
   }
@@ -102,6 +110,11 @@ function salvarEstadoPainel(novoEstado) {
 
 function salvarEstadoDash(novoEstado) {
   estadoDash = novoEstado;
+  render();
+}
+
+function salvarEstadoImportarPdf(novoEstado) {
+  estadoImportarPdf = novoEstado;
   render();
 }
 
