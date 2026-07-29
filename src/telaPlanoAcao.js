@@ -2,12 +2,34 @@ import { listarNaoConformidades, salvarPlanoAcao, assinarPlanoAcao, obterVerific
 import { EMPRESAS } from './config.js';
 import { gerarPdfPlanoAcao, gerarPdfNaoConformidade } from './gerarPdf.js';
 
+const PRIORIDADES = ['ALTA', 'MÉDIA', 'BAIXA'];
+const REGEX_PREFIXO_PRIORIDADE = /^\[(ALTA|M[ÉE]DIA|BAIXA)\]\s*/i;
+
+/* A prioridade não tem coluna própria no backend — ela vive como um prefixo
+   tipo "[ALTA] " no início do texto da ação corretiva. Essas funções separam
+   os dois pra poder editar/filtrar cada um isoladamente. */
+export function extrairPrioridade(acaoCorretiva) {
+  const m = (acaoCorretiva || '').match(REGEX_PREFIXO_PRIORIDADE);
+  if (!m) return '';
+  const p = m[1].toUpperCase();
+  return p.startsWith('M') ? 'MÉDIA' : p;
+}
+
+export function removerPrefixoPrioridade(acaoCorretiva) {
+  return (acaoCorretiva || '').replace(REGEX_PREFIXO_PRIORIDADE, '');
+}
+
+function combinarPrioridadeETexto(prioridade, texto) {
+  return prioridade ? `[${prioridade}] ${texto}` : texto;
+}
+
 export function criarEstadoPlanoAcao() {
   return {
     lista: [],
     carregando: true,
     filtroEmpresa: '',
     filtroStatus: '', // '' | 'pendente' | 'concluido'
+    filtroPrioridade: '', // '' | 'ALTA' | 'MÉDIA' | 'BAIXA' | '_sem_prioridade'
     filtroVerificacaoId: null, // quando definido, mostra só as NCs dessa verificação
     assinatura: null, // { responsavel_verificacao, responsavel_plano_acao, assinatura_plano_acao_em }
     carregandoAssinatura: false
@@ -43,6 +65,11 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
         <option value="">Todos os status</option>
         <option value="pendente" ${estado.filtroStatus === 'pendente' ? 'selected' : ''}>Pendentes</option>
         <option value="concluido" ${estado.filtroStatus === 'concluido' ? 'selected' : ''}>Concluídos</option>
+      </select>
+      <select id="filtro-prioridade-plano" style="flex:1;">
+        <option value="">Todas as prioridades</option>
+        ${PRIORIDADES.map(p => `<option value="${p}" ${estado.filtroPrioridade === p ? 'selected' : ''}>${p}</option>`).join('')}
+        <option value="_sem_prioridade" ${estado.filtroPrioridade === '_sem_prioridade' ? 'selected' : ''}>Sem prioridade definida</option>
       </select>
     </div>
 
@@ -94,10 +121,12 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   const aplicarFiltro = () => {
     estado.filtroEmpresa = div.querySelector('#filtro-empresa-plano').value;
     estado.filtroStatus = div.querySelector('#filtro-status-plano').value;
+    estado.filtroPrioridade = div.querySelector('#filtro-prioridade-plano').value;
     salvarEstado(estado);
   };
   div.querySelector('#filtro-empresa-plano').addEventListener('change', aplicarFiltro);
   div.querySelector('#filtro-status-plano').addEventListener('change', aplicarFiltro);
+  div.querySelector('#filtro-prioridade-plano').addEventListener('change', aplicarFiltro);
 
   if (estado.carregando) {
     try {
@@ -186,7 +215,7 @@ function renderAssinatura(container, estado, salvarEstado) {
   });
 }
 
-function filtrarLista(estado) {
+export function filtrarLista(estado) {
   let lista = estado.lista;
   if (estado.filtroVerificacaoId) {
     lista = lista.filter(i => i.verificacao_id === estado.filtroVerificacaoId);
@@ -198,6 +227,11 @@ function filtrarLista(estado) {
     lista = lista.filter(i => !i.data_realizada);
   } else if (estado.filtroStatus === 'concluido') {
     lista = lista.filter(i => !!i.data_realizada);
+  }
+  if (estado.filtroPrioridade === '_sem_prioridade') {
+    lista = lista.filter(i => !extrairPrioridade(i.acao_corretiva));
+  } else if (estado.filtroPrioridade) {
+    lista = lista.filter(i => extrairPrioridade(i.acao_corretiva) === estado.filtroPrioridade);
   }
   return lista;
 }
@@ -221,11 +255,23 @@ function renderLista(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   });
 }
 
+const COR_PRIORIDADE = {
+  ALTA: 'var(--cor-nao-conforme)',
+  'MÉDIA': 'var(--cor-dourado)',
+  BAIXA: 'var(--cor-texto-fraco)'
+};
+
 export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem) {
   const cartao = document.createElement('div');
   cartao.className = 'cartao-item';
 
   const concluido = !!nc.data_realizada;
+  const prioridadeAtual = extrairPrioridade(nc.acao_corretiva);
+  const textoAcaoCorretiva = removerPrefixoPrioridade(nc.acao_corretiva);
+
+  if (prioridadeAtual === 'ALTA' && !concluido) {
+    cartao.style.borderColor = COR_PRIORIDADE.ALTA;
+  }
 
   cartao.innerHTML = `
     <div class="cartao-item__cabecalho">
@@ -234,8 +280,11 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
         <div class="cartao-item__numero" style="margin-top:6px;">${formatarDataBR(nc.data)} · Folha ${nc.folha} · Item ${String(nc.numero_item).padStart(2, '0')}</div>
         <div class="cartao-item__nome">${nc.nome_item}</div>
       </div>
-      <div style="color:${concluido ? 'var(--cor-conforme)' : 'var(--cor-nao-conforme)'};font-weight:700;font-size:12px;white-space:nowrap;">
-        ${concluido ? 'CONCLUÍDO' : 'PENDENTE'}
+      <div style="text-align:right;">
+        <div style="color:${concluido ? 'var(--cor-conforme)' : 'var(--cor-nao-conforme)'};font-weight:700;font-size:12px;white-space:nowrap;">
+          ${concluido ? 'CONCLUÍDO' : 'PENDENTE'}
+        </div>
+        ${prioridadeAtual ? `<div style="margin-top:4px;font-size:11px;font-weight:700;color:${COR_PRIORIDADE[prioridadeAtual]};white-space:nowrap;">${prioridadeAtual}</div>` : ''}
       </div>
     </div>
 
@@ -243,8 +292,15 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
 
     <div class="cartao-item__detalhe">
       <div class="campo" style="margin-bottom:8px;">
+        <label>Prioridade</label>
+        <select data-campo="prioridade">
+          <option value="" ${prioridadeAtual === '' ? 'selected' : ''}>Não definida</option>
+          ${PRIORIDADES.map(p => `<option value="${p}" ${prioridadeAtual === p ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="campo" style="margin-bottom:8px;">
         <label>Ação corretiva</label>
-        <textarea rows="2" placeholder="Descreva a ação corretiva...">${nc.acao_corretiva || ''}</textarea>
+        <textarea rows="2" placeholder="Descreva a ação corretiva...">${textoAcaoCorretiva}</textarea>
       </div>
       <div class="linha">
         <div class="campo" style="flex:1;">
@@ -269,13 +325,14 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
     </div>
   `;
 
+  const campoPrioridade = cartao.querySelector('[data-campo="prioridade"]');
   const textarea = cartao.querySelector('textarea');
   const campoResponsavel = cartao.querySelector('[data-campo="responsavel"]');
   const campoDataPrevista = cartao.querySelector('[data-campo="data_prevista"]');
   const campoDataRealizada = cartao.querySelector('[data-campo="data_realizada"]');
 
   const salvar = async () => {
-    nc.acao_corretiva = textarea.value;
+    nc.acao_corretiva = combinarPrioridadeETexto(campoPrioridade.value, textarea.value.trim());
     nc.responsavel = campoResponsavel.value;
     nc.data_prevista = campoDataPrevista.value;
     nc.data_realizada = campoDataRealizada.value;
@@ -293,7 +350,7 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
   };
 
   [textarea, campoResponsavel].forEach(campo => campo.addEventListener('blur', salvar));
-  [campoDataPrevista, campoDataRealizada].forEach(campo => campo.addEventListener('change', salvar));
+  [campoPrioridade, campoDataPrevista, campoDataRealizada].forEach(campo => campo.addEventListener('change', salvar));
 
   cartao.querySelector('#botao-pdf-nc').addEventListener('click', () => {
     gerarPdfNaoConformidade(nc);
