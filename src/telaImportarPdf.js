@@ -8,7 +8,8 @@ import {
   finalizarVerificacao,
   salvarPlanoAcao,
   anexarDocumento,
-  arquivoGenericoParaBase64
+  arquivoGenericoParaBase64,
+  arquivoParaBase64
 } from './api.js';
 
 const ORDEM_PRIORIDADE = { ALTA: 3, 'MÉDIA': 2, BAIXA: 1 };
@@ -30,7 +31,7 @@ export function criarEstadoImportarPdf() {
     data: hojeISO(),
     horarioInicio: '',
     responsavelVerificacao: '',
-    itensRevisao: [], // [{ numero, nome, status, descricao, acaoCorretiva, prioridade, quantidadeNCsOriginais }]
+    itensRevisao: [], // [{ numero, nome, status, descricao, acaoCorretiva, prioridade, fotos, quantidadeNCsOriginais }]
     responsavelAuditoria: '',
     responsavelEmpresa: '',
     observacao: '',
@@ -43,7 +44,7 @@ export function criarEstadoImportarPdf() {
 function mesclarNCsDoItem(ncsDoItem) {
   if (ncsDoItem.length === 1) {
     const [nc] = ncsDoItem;
-    return { descricao: nc.descricao, acaoCorretiva: nc.acaoCorretiva, prioridade: nc.prioridade };
+    return { descricao: nc.descricao, acaoCorretiva: nc.acaoCorretiva, prioridade: nc.prioridade, fotos: nc.fotos || [] };
   }
 
   let prioridade = ncsDoItem[0].prioridade;
@@ -53,8 +54,9 @@ function mesclarNCsDoItem(ncsDoItem) {
 
   const descricao = ncsDoItem.map((nc, i) => `${i + 1}) ${nc.descricao}`).join('\n');
   const acaoCorretiva = ncsDoItem.map((nc, i) => `${i + 1}) ${nc.acaoCorretiva}`).join('\n');
+  const fotos = ncsDoItem.flatMap(nc => nc.fotos || []);
 
-  return { descricao, acaoCorretiva, prioridade };
+  return { descricao, acaoCorretiva, prioridade, fotos };
 }
 
 function construirItensRevisao(resultado, avisos) {
@@ -72,7 +74,7 @@ function construirItensRevisao(resultado, avisos) {
     }
 
     if (item.status === 'NC') {
-      const mesclado = mesclarNCsDoItem(ncsDoItem.length > 0 ? ncsDoItem : [{ descricao: '', acaoCorretiva: '', prioridade: 'MÉDIA' }]);
+      const mesclado = mesclarNCsDoItem(ncsDoItem.length > 0 ? ncsDoItem : [{ descricao: '', acaoCorretiva: '', prioridade: 'MÉDIA', fotos: [] }]);
       return {
         numero: item.numero,
         nome: item.nome,
@@ -80,6 +82,7 @@ function construirItensRevisao(resultado, avisos) {
         descricao: mesclado.descricao,
         acaoCorretiva: mesclado.acaoCorretiva,
         prioridade: mesclado.prioridade,
+        fotos: mesclado.fotos,
         quantidadeNCsOriginais: ncsDoItem.length
       };
     }
@@ -91,6 +94,7 @@ function construirItensRevisao(resultado, avisos) {
       descricao: '',
       acaoCorretiva: '',
       prioridade: 'MÉDIA',
+      fotos: [],
       quantidadeNCsOriginais: 0
     };
   });
@@ -258,6 +262,8 @@ function renderRevisao(container, estado, salvarEstado, irParaPlanoAcao) {
 }
 
 function montarCartaoItemRevisao(item) {
+  if (!item.fotos) item.fotos = [];
+
   const cartao = document.createElement('div');
   cartao.className = 'cartao-item';
   cartao.style.marginBottom = '12px';
@@ -282,16 +288,54 @@ function montarCartaoItemRevisao(item) {
         <label>Ação corretiva</label>
         <textarea rows="2" data-campo="acaoCorretiva">${item.acaoCorretiva}</textarea>
       </div>
-      <div class="campo">
+      <div class="campo" style="margin-bottom:8px;">
         <label>Prioridade</label>
         <select data-campo="prioridade">
           ${['ALTA', 'MÉDIA', 'BAIXA'].map(p => `<option value="${p}" ${item.prioridade === p ? 'selected' : ''}>${p}</option>`).join('')}
         </select>
       </div>
+      <div class="campo">
+        <label>Fotos${item.fotos.length > 0 ? ` (${item.fotos.length} encontrada${item.fotos.length === 1 ? '' : 's'} no PDF)` : ''}</label>
+        <div class="cartao-item__fotos" data-lista-fotos></div>
+        <input type="file" accept="image/*" style="display:none" data-input-foto />
+      </div>
     </div>
   `;
 
   const blocoNC = cartao.querySelector('[data-bloco-nc]');
+  const listaFotos = cartao.querySelector('[data-lista-fotos]');
+  const inputFoto = cartao.querySelector('[data-input-foto]');
+
+  function renderFotos() {
+    listaFotos.innerHTML = `
+      ${item.fotos.map((src, i) => `
+        <div class="cartao-item__foto-wrap" data-indice="${i}">
+          <img class="cartao-item__foto" src="${src}" />
+          <button class="cartao-item__foto-remover" data-remover="${i}" title="Remover foto">×</button>
+        </div>
+      `).join('')}
+      <button class="botao-anexar-foto" data-adicionar-foto>+</button>
+    `;
+
+    listaFotos.querySelectorAll('[data-remover]').forEach(botao => {
+      botao.addEventListener('click', () => {
+        item.fotos.splice(parseInt(botao.dataset.remover, 10), 1);
+        renderFotos();
+      });
+    });
+
+    listaFotos.querySelector('[data-adicionar-foto]').addEventListener('click', () => inputFoto.click());
+  }
+  renderFotos();
+
+  inputFoto.addEventListener('change', async () => {
+    const arquivo = inputFoto.files[0];
+    inputFoto.value = '';
+    if (!arquivo) return;
+    const base64 = await arquivoParaBase64(arquivo);
+    item.fotos.push(base64);
+    renderFotos();
+  });
 
   cartao.querySelectorAll('[data-status]').forEach(botao => {
     botao.addEventListener('click', () => {
@@ -356,7 +400,8 @@ async function salvarImportacao(estado, salvarEstado, irParaPlanoAcao) {
       status: item.status,
       descricao: item.status === 'NC' ? item.descricao : '',
       empresa: estado.empresa,
-      data: estado.data
+      data: estado.data,
+      ...(item.status === 'NC' && item.fotos && item.fotos.length > 0 ? { fotosBase64: item.fotos } : {})
     });
   }
 
