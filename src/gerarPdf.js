@@ -403,6 +403,28 @@ export function gerarPdfPlanoAcao(lista, nomeArquivo) {
     doc.text(meta, margemEsquerda + 4, y);
     y += 5;
 
+    // Foto de evidência de que a NC foi resolvida (só embutimos quando temos
+    // o base64 em mãos — a versão vinda do backend costuma ser um link do
+    // Drive, que o jsPDF não consegue buscar sozinho)
+    const fotoResolucao = nc._fotoResolucaoPreview || (nc.foto_resolucao_base64) || (String(nc.foto_resolucao || '').startsWith('data:') ? nc.foto_resolucao : '');
+    if (fotoResolucao) {
+      const larguraFoto = 32;
+      const alturaFoto = 32;
+      novaPaginaSeNecessario(alturaFoto + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...COR_SUAVE);
+      doc.text('Foto da resolução:', margemEsquerda + 4, y);
+      y += 3;
+      try {
+        const formato = fotoResolucao.includes('image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(fotoResolucao, formato, margemEsquerda + 4, y, larguraFoto, alturaFoto);
+        y += alturaFoto + 3;
+      } catch (err) {
+        // se a imagem falhar, segue sem travar o PDF inteiro
+      }
+    }
+
     doc.setDrawColor(...COR_SUAVE);
     doc.setLineWidth(0.15);
     doc.rect(margemEsquerda, boxY - 4, larguraUtil, y - boxY + 1);

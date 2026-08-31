@@ -1,4 +1,4 @@
-import { listarNaoConformidades, salvarPlanoAcao, assinarPlanoAcao, obterVerificacao } from './api.js';
+import { listarNaoConformidades, salvarPlanoAcao, assinarPlanoAcao, obterVerificacao, arquivoParaBase64 } from './api.js';
 import { EMPRESAS } from './config.js';
 import { gerarPdfPlanoAcao, gerarPdfNaoConformidade } from './gerarPdf.js';
 
@@ -318,6 +318,11 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
           <input type="date" value="${nc.data_realizada || ''}" data-campo="data_realizada" />
         </div>
       </div>
+      <div class="campo">
+        <label>Foto da resolução</label>
+        <div class="cartao-item__fotos" data-lista-foto-resolucao></div>
+        <input type="file" accept="image/*" style="display:none" data-input-foto-resolucao />
+      </div>
       <div class="linha" style="margin-top:4px;">
         <button class="botao botao--secundario" id="botao-ver-origem" style="flex:1;">Ver verificação de origem</button>
         <button class="botao botao--secundario" id="botao-pdf-nc" style="flex:1;">Gerar PDF desta NC</button>
@@ -351,6 +356,59 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
 
   [textarea, campoResponsavel].forEach(campo => campo.addEventListener('blur', salvar));
   [campoPrioridade, campoDataPrevista, campoDataRealizada].forEach(campo => campo.addEventListener('change', salvar));
+
+  /* Foto da resolução: envio próprio (não depende de blur nos outros campos)
+     — igual ao anexo de fotos na Nova Verificação manual. */
+  const listaFotoResolucao = cartao.querySelector('[data-lista-foto-resolucao]');
+  const inputFotoResolucao = cartao.querySelector('[data-input-foto-resolucao]');
+
+  function renderFotoResolucao() {
+    const fotoAtual = nc._fotoResolucaoPreview || nc.foto_resolucao || '';
+    listaFotoResolucao.innerHTML = `
+      ${fotoAtual ? `
+        <div class="cartao-item__foto-wrap">
+          <a href="${fotoAtual}" target="_blank"><img class="cartao-item__foto" src="${fotoAtual}" /></a>
+          <button class="cartao-item__foto-remover" data-remover-foto-resolucao title="Remover foto">×</button>
+        </div>
+      ` : ''}
+      <button class="botao-anexar-foto" data-anexar-foto-resolucao>+</button>
+    `;
+
+    listaFotoResolucao.querySelector('[data-anexar-foto-resolucao]').addEventListener('click', () => inputFotoResolucao.click());
+
+    const botaoRemover = listaFotoResolucao.querySelector('[data-remover-foto-resolucao]');
+    if (botaoRemover) {
+      botaoRemover.addEventListener('click', async () => {
+        nc._fotoResolucaoPreview = '';
+        nc.foto_resolucao = '';
+        renderFotoResolucao();
+        await salvarPlanoAcao({
+          verificacao_id: nc.verificacao_id,
+          numero_item: nc.numero_item,
+          foto_resolucao_base64: ''
+        });
+        salvarEstado(estado);
+      });
+    }
+  }
+  renderFotoResolucao();
+
+  inputFotoResolucao.addEventListener('change', async () => {
+    const arquivo = inputFotoResolucao.files[0];
+    inputFotoResolucao.value = '';
+    if (!arquivo) return;
+
+    const base64 = await arquivoParaBase64(arquivo);
+    nc._fotoResolucaoPreview = base64;
+    renderFotoResolucao();
+
+    await salvarPlanoAcao({
+      verificacao_id: nc.verificacao_id,
+      numero_item: nc.numero_item,
+      foto_resolucao_base64: base64
+    });
+    salvarEstado(estado);
+  });
 
   cartao.querySelector('#botao-pdf-nc').addEventListener('click', () => {
     gerarPdfNaoConformidade(nc);
