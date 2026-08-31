@@ -400,8 +400,10 @@ export function gerarPdfPlanoAcao(lista, nomeArquivo) {
       nc.data_realizada ? `Realizada: ${formatarDataBR(nc.data_realizada)}` : 'Realizada: pendente'
     ].filter(Boolean).join('     ');
     doc.setTextColor(...(nc.data_realizada ? COR_CONFORME : COR_NAO_CONFORME));
-    doc.text(meta, margemEsquerda + 4, y);
-    y += 5;
+    const linhasMeta = doc.splitTextToSize(meta, larguraUtil - 8);
+    novaPaginaSeNecessario(linhasMeta.length * 4.3);
+    doc.text(linhasMeta, margemEsquerda + 4, y);
+    y += linhasMeta.length * 4.3 + 1;
 
     // Foto de evidência de que a NC foi resolvida (só embutimos quando temos
     // o base64 em mãos — a versão vinda do backend costuma ser um link do
