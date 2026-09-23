@@ -32,7 +32,7 @@ function render() {
   const sidebar = document.createElement('div');
   sidebar.className = 'sidebar';
   sidebar.innerHTML = `
-    <div class="sidebar__marca">Mamma Mia<br>R&L Qualidade</div>
+    <div class="sidebar__marca">Mamma Mia</div>
     ${ITENS_MENU.map(item => `
       <button class="sidebar__botao ${telaAtual === item.tela ? 'sidebar__botao--ativo' : ''}" data-tela="${item.tela}">
         <span class="sidebar__icone">${item.icone}</span>
