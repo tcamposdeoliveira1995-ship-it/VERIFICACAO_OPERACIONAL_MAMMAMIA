@@ -267,7 +267,14 @@ function associarFotosAsNaoConformidades(naoConformidades, marcadoresNC, imagens
       candidato = marcador;
     }
 
-    const nc = candidato && naoConformidades.find(n => n.ncNumero === candidato.ncNumero);
+    if (!candidato) {
+      // Nenhum marcador de NC antes dela no documento inteiro — é uma imagem
+      // do cabeçalho/logo (ex: o logo "R&L Qualidade"), não uma foto de
+      // evidência. Ignora silenciosamente, sem contar como "não associada".
+      return;
+    }
+
+    const nc = naoConformidades.find(n => n.ncNumero === candidato.ncNumero);
     if (nc) {
       nc.fotos.push(imagem.dataUrl);
     } else {
