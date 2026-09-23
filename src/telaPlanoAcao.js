@@ -302,11 +302,9 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
         <label>Ação corretiva</label>
         <textarea rows="2" placeholder="Descreva a ação corretiva...">${textoAcaoCorretiva}</textarea>
       </div>
-      <div class="linha">
-        <div class="campo" style="flex:1;">
-          <label>Responsável</label>
-          <input type="text" placeholder="Nome" value="${nc.responsavel || ''}" data-campo="responsavel" />
-        </div>
+      <div class="campo" style="margin-bottom:8px;">
+        <label>Responsável</label>
+        <textarea rows="2" placeholder="Nome (ou cole aqui os detalhes de uma OS, por exemplo)" data-campo="responsavel">${nc.responsavel || ''}</textarea>
       </div>
       <div class="linha">
         <div class="campo" style="flex:1;">
@@ -338,7 +336,7 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
 
   const salvar = async () => {
     nc.acao_corretiva = combinarPrioridadeETexto(campoPrioridade.value, textarea.value.trim());
-    nc.responsavel = campoResponsavel.value;
+    nc.responsavel = campoResponsavel.value.trim();
     nc.data_prevista = campoDataPrevista.value;
     nc.data_realizada = campoDataRealizada.value;
 
