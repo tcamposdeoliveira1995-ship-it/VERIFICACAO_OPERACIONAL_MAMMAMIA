@@ -11,7 +11,7 @@ export function criarEstadoDash() {
   };
 }
 
-export async function montarTelaDash(container, estado, salvarEstado) {
+export async function montarTelaDash(container, estado, salvarEstado, abrirPlanoComFiltroStatus) {
   container.innerHTML = '';
 
   const div = document.createElement('div');
@@ -43,10 +43,10 @@ export async function montarTelaDash(container, estado, salvarEstado) {
     return;
   }
 
-  renderDash(conteudo, estado);
+  renderDash(conteudo, estado, abrirPlanoComFiltroStatus);
 }
 
-function renderDash(container, estado) {
+function renderDash(container, estado, abrirPlanoComFiltroStatus) {
   const { verificacoes, ncs } = estado;
 
   if (verificacoes.length === 0) {
@@ -82,11 +82,26 @@ function renderDash(container, estado) {
   cards.innerHTML = [
     montarCardHtml('Verificações', totalVerificacoes, ''),
     montarCardHtml('Conformidade geral', conformidadeGeral.toFixed(0), '%', conformidadeGeral >= 80 ? 'var(--cor-conforme)' : 'var(--cor-nao-conforme)'),
-    montarCardHtml('NCs abertas', ncsAbertas.length, '', ncsAbertas.length > 0 ? 'var(--cor-nao-conforme)' : 'var(--cor-conforme)'),
-    montarCardHtml('NCs resolvidas', ncsResolvidas.length, '', 'var(--cor-conforme)'),
+    montarCardHtml('NCs abertas', ncsAbertas.length, '', ncsAbertas.length > 0 ? 'var(--cor-nao-conforme)' : 'var(--cor-conforme)', 'ncs-abertas'),
+    montarCardHtml('NCs resolvidas', ncsResolvidas.length, '', 'var(--cor-conforme)', 'ncs-resolvidas'),
     montarCardHtml('Tempo médio p/ resolver', tempoMedioResolucao !== null ? tempoMedioResolucao.toFixed(1) : '-', tempoMedioResolucao !== null ? ' dias' : '')
   ].join('');
   container.appendChild(cards);
+
+  /* Cards clicáveis: abrem o Plano de Ação já filtrado por status */
+  const CARDS_FILTRO_STATUS = { 'ncs-abertas': 'pendente', 'ncs-resolvidas': 'concluido' };
+  Object.entries(CARDS_FILTRO_STATUS).forEach(([idCard, filtroStatus]) => {
+    const card = cards.querySelector(`[data-card="${idCard}"]`);
+    if (!card || typeof abrirPlanoComFiltroStatus !== 'function') return;
+    const abrir = () => abrirPlanoComFiltroStatus(filtroStatus);
+    card.addEventListener('click', abrir);
+    card.addEventListener('keydown', evento => {
+      if (evento.key === 'Enter' || evento.key === ' ') {
+        evento.preventDefault();
+        abrir();
+      }
+    });
+  });
 
   /* ---------- Linha do tempo: conformidade por mês ---------- */
   const pontosTempo = calcularConformidadePorMes(verificacoes, ncs);
@@ -195,9 +210,12 @@ function calcularConformidadePorMes(verificacoes, ncs) {
 
 /* ===================== Componentes visuais (SVG, sem dependências) ===================== */
 
-function montarCardHtml(titulo, valor, sufixo, cor) {
+function montarCardHtml(titulo, valor, sufixo, cor, idCard) {
+  const atributosClicavel = idCard
+    ? ` data-card="${idCard}" role="button" tabindex="0" title="Ver no Plano de Ação"`
+    : '';
   return `
-    <div class="cartao-item" style="text-align:center;padding:14px 10px;">
+    <div class="cartao-item"${atributosClicavel} style="text-align:center;padding:14px 10px;${idCard ? 'cursor:pointer;' : ''}">
       <div style="font-size:22px;font-weight:700;color:${cor || 'var(--cor-texto)'};font-family:var(--fonte-display);">${valor}${sufixo}</div>
       <div style="font-size:11px;color:var(--cor-texto-suave);margin-top:4px;">${titulo}</div>
     </div>

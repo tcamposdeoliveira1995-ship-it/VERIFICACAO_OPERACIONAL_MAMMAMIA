@@ -76,7 +76,7 @@ function render() {
   if (telaAtual === 'painel') {
     montarTelaPainel(containerTela, estadoPainel, salvarEstadoPainel, abrirVerificacaoOrigem);
   } else if (telaAtual === 'dash') {
-    montarTelaDash(containerTela, estadoDash, salvarEstadoDash);
+    montarTelaDash(containerTela, estadoDash, salvarEstadoDash, abrirPlanoComFiltroStatus);
   } else if (telaAtual === 'nova') {
     montarTelaNovaVerificacao(containerTela, estadoNovaVerificacao, salvarEstadoNovaVerificacao, irParaHistorico);
   } else if (telaAtual === 'plano') {
@@ -139,6 +139,14 @@ function abrirPdf(dadosVerificacao) {
 function abrirPlanoDeVerificacao(verificacaoId) {
   estadoPlanoAcao = criarEstadoPlanoAcao();
   estadoPlanoAcao.filtroVerificacaoId = verificacaoId;
+  telaAtual = 'plano';
+  render();
+}
+
+/* Dash -> Plano de Ação (cards NCs abertas/resolvidas: 'pendente' | 'concluido') */
+function abrirPlanoComFiltroStatus(filtroStatus) {
+  estadoPlanoAcao = criarEstadoPlanoAcao();
+  estadoPlanoAcao.filtroStatus = filtroStatus;
   telaAtual = 'plano';
   render();
 }
