@@ -7,6 +7,10 @@ const COR_CONFORME = [60, 120, 85];
 const COR_NAO_CONFORME = [180, 55, 45];
 const COR_ALERTA = [201, 140, 39];
 const COR_BORDA = [225, 219, 205];
+// Status das NCs nos cartões do PDF: mesmas cores do app (--cor-nao-conforme / --cor-conforme em style.css)
+const COR_PENDENTE = [184, 57, 47];        // #b8392f
+const COR_PENDENTE_FUNDO = [253, 236, 236]; // #FDECEC
+const COR_RESOLVIDA = [47, 122, 77];       // #2f7a4d
 
 const REGEX_PREFIXO_PRIORIDADE = /^\[(ALTA|M[ÉE]DIA|BAIXA)\]\s*/i;
 const COR_PRIORIDADE = { ALTA: COR_NAO_CONFORME, 'MÉDIA': COR_ALERTA, BAIXA: COR_SUAVE };
@@ -94,7 +98,7 @@ function desenharCabecalho(doc, { margemEsquerda, larguraUtil, titulo, subtitulo
    vez do antigo formato "Rótulo: valor" tudo numa linha só — assim um valor
    comprido (ou colado com várias linhas, tipo um resumo de OS) quebra de
    forma legível, sem se misturar com o campo vizinho. Devolve o y seguinte. */
-function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não definido', cor = COR_TEXTO, tamanho = 9.5, novaPaginaSeNecessario }) {
+function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não definido', cor = COR_TEXTO, tamanho = 9.5, negrito = false, novaPaginaSeNecessario }) {
   const texto = sanitizarTexto(valor);
   const linhas = doc.splitTextToSize(texto || vazio, largura);
   const alturaLinha = tamanho * 0.46;
@@ -111,7 +115,7 @@ function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não defini
   doc.setTextColor(...COR_SUAVE);
   doc.text(rotulo.toUpperCase(), x, y);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', negrito ? 'bold' : 'normal');
   doc.setFontSize(tamanho);
   doc.setTextColor(...(texto ? cor : COR_SUAVE));
 
@@ -127,7 +131,7 @@ function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não defini
     yLinha = novaPaginaSeNecessario(alturaLinha, yLinha);
     if (yLinha !== yAntes) {
       yLinha += 3;
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', negrito ? 'bold' : 'normal');
       doc.setFontSize(tamanho);
       doc.setTextColor(...(texto ? cor : COR_SUAVE));
     }
@@ -444,9 +448,10 @@ export function gerarPdfConsolidado(listaDeDados, nomeArquivo) {
 /* "Doc" de medição: calcula quebras de linha e alturas como o doc real, mas
    não desenha nada (text/rect/line/addImage viram no-op). */
 function criarMedidor(doc) {
-  const ignorar = new Set(['text', 'rect', 'line', 'addImage']);
+  const ignorar = new Set(['text', 'rect', 'roundedRect', 'line', 'addImage']);
   const medidor = new Proxy(doc, {
     get(alvo, prop) {
+      if (prop === '__medindo') return true;
       if (ignorar.has(prop)) return () => medidor;
       const valor = alvo[prop];
       return typeof valor === 'function' ? valor.bind(alvo) : valor;
@@ -483,13 +488,36 @@ function desenharConteudoCartaoNC(doc, opcoes) {
   const prioridade = prioridadeSelo !== undefined ? prioridadeSelo : extrairPrioridade(acaoCorretiva);
   const textoAcaoCorretiva = prioridadeSelo !== undefined ? acaoCorretiva : removerPrefixoPrioridade(acaoCorretiva);
   const concluida = !!dataRealizada;
+  const medindo = doc.__medindo === true;
+
+  /* Fundo vermelho claro das NCs pendentes. A altura do cartão só é conhecida
+     no fim, então o retângulo é desenhado depois e as operações dele são movidas
+     pro ponto do conteúdo da página onde o cartão começou (fica ATRÁS do texto
+     e da foto). q/Q isola a cor de preenchimento do resto da página. */
+  const marcarInicioFundo = () => {
+    if (medindo) return null;
+    const pagina = doc.getCurrentPageInfo().pageNumber;
+    return { pagina, indice: doc.internal.pages[pagina].length };
+  };
+  let inicioFundo = marcarInicioFundo();
+  const pintarFundo = (topo, fim) => {
+    if (concluida || medindo || !inicioFundo) return;
+    const operacoes = doc.internal.pages[inicioFundo.pagina];
+    const antes = operacoes.length;
+    doc.saveGraphicsState();
+    doc.setFillColor(...COR_PENDENTE_FUNDO);
+    doc.rect(margemEsquerda, topo - 3, larguraUtil, fim - topo + 2, 'F');
+    doc.restoreGraphicsState();
+    operacoes.splice(inicioFundo.indice, 0, ...operacoes.splice(antes));
+  };
 
   const desenharMoldura = (topo, fim) => {
-    doc.setDrawColor(...COR_BORDA);
-    doc.setLineWidth(0.2);
+    pintarFundo(topo, fim);
+    doc.setDrawColor(...(concluida ? COR_BORDA : COR_PENDENTE));
+    doc.setLineWidth(concluida ? 0.2 : 0.35);
     doc.rect(margemEsquerda, topo - 3, larguraUtil, fim - topo + 2);
-    doc.setDrawColor(...(concluida ? COR_CONFORME : (COR_PRIORIDADE[prioridade] || COR_SUAVE)));
-    doc.setLineWidth(1.1);
+    doc.setDrawColor(...(concluida ? COR_RESOLVIDA : COR_PENDENTE));
+    doc.setLineWidth(concluida ? 1.1 : 1.6);
     doc.line(margemEsquerda + 0.6, topo - 3, margemEsquerda + 0.6, fim - 1);
   };
 
@@ -504,6 +532,7 @@ function desenharConteudoCartaoNC(doc, opcoes) {
       desenharMoldura(boxY, yAtual);
       doc.setPage(paginaAtual);
       boxY = novoY + 3;
+      inicioFundo = marcarInicioFundo();
     }
     return novoY;
   };
@@ -515,7 +544,23 @@ function desenharConteudoCartaoNC(doc, opcoes) {
   const linhasCabecalho = doc.splitTextToSize(cabecalho, larguraConteudo - 26);
   doc.text(linhasCabecalho, xConteudo, y + 3);
 
-  desenharSelo(doc, concluida ? 'CONCLUÍDO' : 'PENDENTE', margemEsquerda + larguraUtil - 5, y + 3, concluida ? COR_CONFORME : COR_NAO_CONFORME, true);
+  if (concluida) {
+    desenharSelo(doc, 'RESOLVIDA', margemEsquerda + larguraUtil - 5, y + 3, COR_RESOLVIDA, true);
+  } else {
+    // Selo cheio vermelho com texto branco: "PENDENTE" tem que saltar aos olhos
+    const xDireita = margemEsquerda + larguraUtil - 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    const larguraSelo = doc.getTextWidth('PENDENTE') + 4;
+    if (!medindo) {
+      doc.saveGraphicsState();
+      doc.setFillColor(...COR_PENDENTE);
+      doc.roundedRect(xDireita - larguraSelo, y - 0.2, larguraSelo, 4.6, 1, 1, 'F');
+      doc.restoreGraphicsState();
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.text('PENDENTE', xDireita - 2, y + 3, { align: 'right' });
+  }
   if (prioridade) {
     desenharSelo(doc, prioridade, margemEsquerda + larguraUtil - 5, y + 8, COR_PRIORIDADE[prioridade] || COR_SUAVE, true);
   }
@@ -542,8 +587,8 @@ function desenharConteudoCartaoNC(doc, opcoes) {
 
   y = quebra(9, y);
   const largMetade = (larguraConteudo - 8) / 2;
-  const yPrevista = desenharCampo(doc, { x: xConteudo, y, largura: largMetade, rotulo: 'Prevista', valor: dataPrevista ? formatarDataBR(dataPrevista) : '', vazio: 'Não definida', tamanho: 9 });
-  const yRealizada = desenharCampo(doc, { x: xConteudo + largMetade + 8, y, largura: largMetade, rotulo: 'Realizada', valor: dataRealizada ? formatarDataBR(dataRealizada) : '', vazio: 'Pendente', cor: concluida ? COR_CONFORME : COR_NAO_CONFORME, tamanho: 9 });
+  const yPrevista = desenharCampo(doc, { x: xConteudo, y, largura: largMetade, rotulo: 'Data prevista', valor: dataPrevista ? formatarDataBR(dataPrevista) : '', vazio: 'Não definida', tamanho: 9 });
+  const yRealizada = desenharCampo(doc, { x: xConteudo + largMetade + 8, y, largura: largMetade, rotulo: 'Data realizada', valor: dataRealizada ? formatarDataBR(dataRealizada) : 'NÃO RESOLVIDA', cor: concluida ? COR_RESOLVIDA : COR_PENDENTE, negrito: !concluida, tamanho: 9 });
   y = Math.max(yPrevista, yRealizada) + 2.5;
 
   if (fotoResolucao) {
