@@ -257,7 +257,11 @@ function renderRevisao(container, estado, salvarEstado, irParaPlanoAcao) {
   });
 
   div.querySelector('#botao-salvar').addEventListener('click', () => {
-    salvarImportacao(estado, salvarEstado, irParaPlanoAcao);
+    salvarImportacao(estado, salvarEstado, irParaPlanoAcao).catch(e => {
+      estado.salvando = false;
+      salvarEstado(estado);
+      alert(`A importação parou no meio: ${e.message}. Confira no Histórico o que já foi gravado antes de tentar de novo.`);
+    });
   });
 }
 
@@ -388,10 +392,8 @@ async function salvarImportacao(estado, salvarEstado, irParaPlanoAcao) {
     timestamp_criacao: new Date().toISOString()
   });
 
-  // Gravação sequencial (uma requisição por vez) — o Apps Script não é
-  // seguro para escritas concorrentes na planilha; em paralelo, algumas
-  // linhas eram perdidas silenciosamente (o fetch usa no-cors, então o
-  // navegador nunca via o erro).
+  // Gravação sequencial (uma requisição por vez). Agora cada POST confere
+  // a resposta do servidor: se uma gravação falhar, a importação para e avisa.
   for (const item of estado.itensRevisao) {
     await salvarItem({
       verificacao_id: verificacaoId,

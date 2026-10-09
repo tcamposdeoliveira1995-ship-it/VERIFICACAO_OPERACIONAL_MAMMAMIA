@@ -128,15 +128,22 @@ function renderCabecalho(container, estado, salvarEstado) {
       estado.folha = 1;
     }
 
-    await criarVerificacao({
-      id: estado.verificacaoId,
-      empresa: estado.empresa,
-      data: estado.data,
-      horario_inicio: estado.horarioInicio,
-      responsavel_verificacao: estado.responsavelVerificacao,
-      folha: estado.folha,
-      timestamp_criacao: new Date().toISOString()
-    });
+    try {
+      await criarVerificacao({
+        id: estado.verificacaoId,
+        empresa: estado.empresa,
+        data: estado.data,
+        horario_inicio: estado.horarioInicio,
+        responsavel_verificacao: estado.responsavelVerificacao,
+        folha: estado.folha,
+        timestamp_criacao: new Date().toISOString()
+      });
+    } catch (e) {
+      botaoContinuar.disabled = false;
+      botaoContinuar.textContent = 'Iniciar verificação';
+      alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      return;
+    }
 
     estado.etapa = 'formulario';
     salvarEstado(estado);
@@ -274,14 +281,18 @@ function montarCartaoItem(item, estado, salvarEstado) {
     const textarea = detalhe.querySelector('textarea');
     textarea.addEventListener('blur', async () => {
       item.descricao = textarea.value;
-      await salvarItem({
-        verificacao_id: estado.verificacaoId,
-        numero_item: item.numero,
-        nome_item: item.nome,
-        descricao: item.descricao,
-        empresa: estado.empresa,
-        data: estado.data
-      });
+      try {
+        await salvarItem({
+          verificacao_id: estado.verificacaoId,
+          numero_item: item.numero,
+          nome_item: item.nome,
+          descricao: item.descricao,
+          empresa: estado.empresa,
+          data: estado.data
+        });
+      } catch (e) {
+        alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      }
     });
 
     const botaoAnexar = detalhe.querySelector('.botao-anexar-foto');
@@ -293,14 +304,18 @@ function montarCartaoItem(item, estado, salvarEstado) {
       const base64 = await arquivoParaBase64(arquivo);
       item.fotosPreview.push(base64);
       salvarEstado(estado);
-      await salvarItem({
-        verificacao_id: estado.verificacaoId,
-        numero_item: item.numero,
-        nome_item: item.nome,
-        empresa: estado.empresa,
-        data: estado.data,
-        fotosBase64: [base64]
-      });
+      try {
+        await salvarItem({
+          verificacao_id: estado.verificacaoId,
+          numero_item: item.numero,
+          nome_item: item.nome,
+          empresa: estado.empresa,
+          data: estado.data,
+          fotosBase64: [base64]
+        });
+      } catch (e) {
+        alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      }
     });
 
     cartao.appendChild(detalhe);
@@ -310,14 +325,18 @@ function montarCartaoItem(item, estado, salvarEstado) {
     botao.addEventListener('click', async () => {
       item.status = botao.dataset.status;
       salvarEstado(estado);
-      await salvarItem({
-        verificacao_id: estado.verificacaoId,
-        numero_item: item.numero,
-        nome_item: item.nome,
-        status: item.status,
-        empresa: estado.empresa,
-        data: estado.data
-      });
+      try {
+        await salvarItem({
+          verificacao_id: estado.verificacaoId,
+          numero_item: item.numero,
+          nome_item: item.nome,
+          status: item.status,
+          empresa: estado.empresa,
+          data: estado.data
+        });
+      } catch (e) {
+        alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      }
     });
   });
 
@@ -357,12 +376,16 @@ function montarLinhaTemperatura(linha, estado, salvarEstado) {
   `;
 
   const salvar = async () => {
-    await salvarTemperatura({
-      verificacao_id: estado.verificacaoId,
-      linha_id: linha.linha_id,
-      identificacao: linha.identificacao,
-      temperatura: linha.temperatura
-    });
+    try {
+      await salvarTemperatura({
+        verificacao_id: estado.verificacaoId,
+        linha_id: linha.linha_id,
+        identificacao: linha.identificacao,
+        temperatura: linha.temperatura
+      });
+    } catch (e) {
+      alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+    }
   };
 
   div.querySelector('[data-campo="identificacao"]').addEventListener('blur', e => {
@@ -376,7 +399,11 @@ function montarLinhaTemperatura(linha, estado, salvarEstado) {
   div.querySelector('.linha-temperatura__remover').addEventListener('click', async () => {
     estado.temperaturas = estado.temperaturas.filter(l => l.linha_id !== linha.linha_id);
     salvarEstado(estado);
-    await removerTemperatura(estado.verificacaoId, linha.linha_id);
+    try {
+      await removerTemperatura(estado.verificacaoId, linha.linha_id);
+    } catch (e) {
+      alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+    }
   });
 
   return div;
@@ -426,13 +453,20 @@ function montarSecaoFinalizacao(estado, salvarEstado) {
     botaoFinalizar.disabled = true;
     botaoFinalizar.textContent = 'Finalizando...';
 
-    await finalizarVerificacao({
-      verificacao_id: estado.verificacaoId,
-      responsavel_auditoria: estado.responsavelAuditoria,
-      responsavel_empresa: estado.responsavelEmpresa,
-      observacao: estado.observacao,
-      confirmado_em: new Date().toISOString()
-    });
+    try {
+      await finalizarVerificacao({
+        verificacao_id: estado.verificacaoId,
+        responsavel_auditoria: estado.responsavelAuditoria,
+        responsavel_empresa: estado.responsavelEmpresa,
+        observacao: estado.observacao,
+        confirmado_em: new Date().toISOString()
+      });
+    } catch (e) {
+      botaoFinalizar.disabled = false;
+      botaoFinalizar.textContent = 'Confirmar e finalizar';
+      alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      return;
+    }
 
     estado.etapa = 'concluido';
     salvarEstado(estado);

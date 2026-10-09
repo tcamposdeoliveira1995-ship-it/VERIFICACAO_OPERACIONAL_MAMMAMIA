@@ -130,9 +130,13 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
 
   if (estado.carregando) {
     try {
-      estado.lista = await listarNaoConformidades();
+      const resultado = await listarNaoConformidades();
+      if (!Array.isArray(resultado)) throw new Error((resultado && resultado.erro) || 'Resposta inválida');
+      estado.lista = resultado;
+      estado.erroCarregamento = false;
     } catch (e) {
       estado.lista = [];
+      estado.erroCarregamento = true;
     }
     estado.carregando = false;
     renderLista(listaPlano, estado, salvarEstado, abrirVerificacaoOrigem);
@@ -203,11 +207,18 @@ function renderAssinatura(container, estado, salvarEstado) {
     botao.textContent = 'Assinando...';
 
     const agora = new Date().toISOString();
-    await assinarPlanoAcao({
-      verificacao_id: estado.filtroVerificacaoId,
-      responsavel_plano_acao: nome,
-      assinatura_plano_acao_em: agora
-    });
+    try {
+      await assinarPlanoAcao({
+        verificacao_id: estado.filtroVerificacaoId,
+        responsavel_plano_acao: nome,
+        assinatura_plano_acao_em: agora
+      });
+    } catch (e) {
+      botao.disabled = false;
+      botao.textContent = 'Confirmar assinatura';
+      alert(`Não foi salvo: ${e.message}. Tente de novo.`);
+      return;
+    }
 
     estado.assinatura.responsavel_plano_acao = nome;
     estado.assinatura.assinatura_plano_acao_em = agora;
@@ -241,6 +252,10 @@ function renderLista(container, estado, salvarEstado, abrirVerificacaoOrigem) {
     container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
     return;
   }
+  if (estado.erroCarregamento) {
+    container.innerHTML = `<div class="estado-vazio" style="color:var(--cor-nao-conforme);" data-erro-carregamento>Erro ao carregar os dados. Recarregue a página.</div>`;
+    return;
+  }
 
   const lista = filtrarLista(estado);
 
@@ -260,6 +275,23 @@ const COR_PRIORIDADE = {
   'MÉDIA': 'var(--cor-dourado)',
   BAIXA: 'var(--cor-texto-fraco)'
 };
+
+/* Data aceita para envio: yyyy-mm-dd real com ano 2020..2100 */
+export function dataValidaPlano(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor || '');
+  if (!m) return false;
+  const ano = Number(m[1]), mes = Number(m[2]), dia = Number(m[3]);
+  if (ano < 2020 || ano > 2100) return false;
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  return d.getUTCFullYear() === ano && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia;
+}
+
+/* Valor do campo de data para enviar: '' (limpeza intencional), data válida, ou null (inválida — não enviar) */
+function valorDataParaEnvio(campo) {
+  const valor = campo.value;
+  if (valor === '') return campo.validity && campo.validity.badInput ? null : '';
+  return dataValidaPlano(valor) ? valor : null;
+}
 
 export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem) {
   const cartao = document.createElement('div');
@@ -309,11 +341,11 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
       <div class="linha">
         <div class="campo" style="flex:1;">
           <label>Data prevista</label>
-          <input type="date" value="${nc.data_prevista || ''}" data-campo="data_prevista" />
+          <input type="date" min="2020-01-01" max="2100-12-31" value="${nc.data_prevista || ''}" data-campo="data_prevista" />
         </div>
         <div class="campo" style="flex:1;">
           <label>Data realizada</label>
-          <input type="date" value="${nc.data_realizada || ''}" data-campo="data_realizada" />
+          <input type="date" min="2020-01-01" max="2100-12-31" value="${nc.data_realizada || ''}" data-campo="data_realizada" />
         </div>
       </div>
       <div class="campo">
@@ -321,6 +353,7 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
         <div class="cartao-item__fotos" data-lista-foto-resolucao></div>
         <input type="file" accept="image/*" style="display:none" data-input-foto-resolucao />
       </div>
+      <div data-status-salvar role="status" aria-live="polite" style="font-size:12px;font-weight:600;min-height:16px;margin:-4px 0 8px;"></div>
       <div class="linha" style="margin-top:4px;">
         <button class="botao botao--secundario" id="botao-ver-origem" style="flex:1;">Ver verificação de origem</button>
         <button class="botao botao--secundario" id="botao-pdf-nc" style="flex:1;">Gerar PDF desta NC</button>
@@ -334,21 +367,48 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
   const campoDataPrevista = cartao.querySelector('[data-campo="data_prevista"]');
   const campoDataRealizada = cartao.querySelector('[data-campo="data_realizada"]');
 
+  const statusSalvar = cartao.querySelector('[data-status-salvar]');
+  const mostrarStatus = (tipo, texto) => {
+    statusSalvar.dataset.tipo = tipo;
+    statusSalvar.textContent = texto;
+    statusSalvar.style.color = tipo === 'erro' ? 'var(--cor-nao-conforme)'
+      : tipo === 'ok' ? 'var(--cor-conforme)' : 'var(--cor-texto-suave)';
+  };
+  // "Salvo ✓" sobrevive ao re-render que salvarEstado provoca
+  if (nc._salvoEm && Date.now() - nc._salvoEm < 4000) {
+    mostrarStatus('ok', 'Salvo ✓');
+    setTimeout(() => { if (statusSalvar.dataset.tipo === 'ok') mostrarStatus('', ''); }, 4000 - (Date.now() - nc._salvoEm));
+  }
+
   const salvar = async () => {
-    nc.acao_corretiva = combinarPrioridadeETexto(campoPrioridade.value, textarea.value.trim());
-    nc.responsavel = campoResponsavel.value.trim();
-    nc.data_prevista = campoDataPrevista.value;
-    nc.data_realizada = campoDataRealizada.value;
+    const dataPrevista = valorDataParaEnvio(campoDataPrevista);
+    const dataRealizada = valorDataParaEnvio(campoDataRealizada);
+    if (dataPrevista === null || dataRealizada === null) {
+      mostrarStatus('erro', 'Data inválida: use o dia/mês/ano completo, com ano entre 2020 e 2100. Nada foi salvo.');
+      return;
+    }
 
-    await salvarPlanoAcao({
-      verificacao_id: nc.verificacao_id,
-      numero_item: nc.numero_item,
-      acao_corretiva: nc.acao_corretiva,
-      responsavel: nc.responsavel,
-      data_prevista: nc.data_prevista,
-      data_realizada: nc.data_realizada
-    });
+    const novo = {
+      acao_corretiva: combinarPrioridadeETexto(campoPrioridade.value, textarea.value.trim()),
+      responsavel: campoResponsavel.value.trim(),
+      data_prevista: dataPrevista,
+      data_realizada: dataRealizada
+    };
 
+    mostrarStatus('salvando', 'Salvando...');
+    try {
+      await salvarPlanoAcao({
+        verificacao_id: nc.verificacao_id,
+        numero_item: nc.numero_item,
+        ...novo
+      });
+    } catch (e) {
+      mostrarStatus('erro', `Não foi salvo: ${e.message}. Tente de novo.`);
+      return; // estado local fica como estava
+    }
+
+    Object.assign(nc, novo);
+    nc._salvoEm = Date.now();
     salvarEstado(estado);
   };
 
@@ -377,14 +437,25 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
     const botaoRemover = listaFotoResolucao.querySelector('[data-remover-foto-resolucao]');
     if (botaoRemover) {
       botaoRemover.addEventListener('click', async () => {
+        const anterior = { preview: nc._fotoResolucaoPreview, foto: nc.foto_resolucao };
         nc._fotoResolucaoPreview = '';
         nc.foto_resolucao = '';
         renderFotoResolucao();
-        await salvarPlanoAcao({
-          verificacao_id: nc.verificacao_id,
-          numero_item: nc.numero_item,
-          foto_resolucao_base64: ''
-        });
+        mostrarStatus('salvando', 'Salvando...');
+        try {
+          await salvarPlanoAcao({
+            verificacao_id: nc.verificacao_id,
+            numero_item: nc.numero_item,
+            foto_resolucao_base64: ''
+          });
+        } catch (e) {
+          nc._fotoResolucaoPreview = anterior.preview;
+          nc.foto_resolucao = anterior.foto;
+          renderFotoResolucao();
+          mostrarStatus('erro', `Não foi salvo: ${e.message}. Tente de novo.`);
+          return;
+        }
+        nc._salvoEm = Date.now();
         salvarEstado(estado);
       });
     }
@@ -396,15 +467,31 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
     inputFotoResolucao.value = '';
     if (!arquivo) return;
 
-    const base64 = await arquivoParaBase64(arquivo);
+    const anterior = nc._fotoResolucaoPreview;
+    let base64;
+    try {
+      base64 = await arquivoParaBase64(arquivo);
+    } catch (e) {
+      mostrarStatus('erro', 'Não foi possível ler a foto. Tente de novo.');
+      return;
+    }
     nc._fotoResolucaoPreview = base64;
     renderFotoResolucao();
 
-    await salvarPlanoAcao({
-      verificacao_id: nc.verificacao_id,
-      numero_item: nc.numero_item,
-      foto_resolucao_base64: base64
-    });
+    mostrarStatus('salvando', 'Enviando foto...');
+    try {
+      await salvarPlanoAcao({
+        verificacao_id: nc.verificacao_id,
+        numero_item: nc.numero_item,
+        foto_resolucao_base64: base64
+      });
+    } catch (e) {
+      nc._fotoResolucaoPreview = anterior;
+      renderFotoResolucao();
+      mostrarStatus('erro', `Não foi salvo: ${e.message}. Tente de novo.`);
+      return;
+    }
+    nc._salvoEm = Date.now();
     salvarEstado(estado);
   });
 

@@ -32,11 +32,14 @@ export async function montarTelaDash(container, estado, salvarEstado, abrirPlano
         listarVerificacoes({}),
         listarNaoConformidades()
       ]);
-      estado.verificacoes = Array.isArray(verificacoes) ? verificacoes : [];
-      estado.ncs = Array.isArray(ncs) ? ncs : [];
+      if (!Array.isArray(verificacoes) || !Array.isArray(ncs)) throw new Error('Resposta inválida');
+      estado.verificacoes = verificacoes;
+      estado.ncs = ncs;
+      estado.erroCarregamento = false;
     } catch (e) {
       estado.verificacoes = [];
       estado.ncs = [];
+      estado.erroCarregamento = true;
     }
     estado.carregando = false;
     salvarEstado(estado);
@@ -48,6 +51,11 @@ export async function montarTelaDash(container, estado, salvarEstado, abrirPlano
 
 function renderDash(container, estado, abrirPlanoComFiltroStatus) {
   const { verificacoes, ncs } = estado;
+
+  if (estado.erroCarregamento) {
+    container.innerHTML = `<div class="estado-vazio" style="color:var(--cor-nao-conforme);" data-erro-carregamento>Erro ao carregar os dados. Recarregue a página.</div>`;
+    return;
+  }
 
   if (verificacoes.length === 0) {
     container.innerHTML = `<div class="estado-vazio">Nenhuma verificação registrada ainda.</div>`;
