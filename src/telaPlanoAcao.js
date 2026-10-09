@@ -99,7 +99,8 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
       alert('Nenhuma não conformidade para gerar PDF com os filtros atuais.');
       return;
     }
-    gerarPdfPlanoAcao(listaFiltrada);
+    const { partes, nomeArquivo } = descreverFiltrosParaPdf(estado);
+    gerarPdfPlanoAcao(listaFiltrada, nomeArquivo, { partes });
   });
 
   const blocoAssinatura = div.querySelector('#bloco-assinatura-plano');
@@ -192,6 +193,46 @@ export function listarRelatorios(lista, empresa) {
     relatorios.push({ id: SEM_RELATORIO, rotulo: 'Sem relatório (verificação apagada)', total });
   }
   return relatorios;
+}
+
+/* Texto dos filtros ativos (título do PDF) e nome do arquivo ASCII-safe,
+   ex.: '08/10/2026 · YUKA · Folha 1' + 'NCs resolvidas' → Plano_de_Acao_2026-10-08_YUKA_F1_resolvidas.pdf */
+function descreverFiltrosParaPdf(estado) {
+  const partes = [];
+  const pedacosArquivo = [];
+  const id = estado.filtroVerificacaoId;
+
+  if (id === SEM_RELATORIO) {
+    partes.push('Sem relatório');
+    pedacosArquivo.push('sem-relatorio');
+  } else if (id) {
+    const relatorio = listarRelatorios(estado.lista).find(r => r.id === id);
+    if (relatorio) {
+      partes.push(relatorio.rotulo);
+      pedacosArquivo.push(relatorio.data, relatorio.empresa, relatorio.folha ? `F${relatorio.folha}` : '');
+    } else {
+      partes.push('Verificação selecionada');
+      pedacosArquivo.push('verificacao');
+    }
+  } else if (estado.filtroEmpresa) {
+    partes.push(estado.filtroEmpresa);
+    pedacosArquivo.push(hojeBrasiliaISO(), estado.filtroEmpresa);
+  }
+  if (!id && !estado.filtroEmpresa) pedacosArquivo.push(hojeBrasiliaISO());
+
+  if (estado.filtroStatus === 'concluido') { partes.push('NCs resolvidas'); pedacosArquivo.push('resolvidas'); }
+  if (estado.filtroStatus === 'pendente') { partes.push('NCs pendentes'); pedacosArquivo.push('pendentes'); }
+
+  const nome = ['Plano_de_Acao', ...pedacosArquivo.filter(Boolean)
+    .map(p => String(p).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, ''))]
+    .filter(Boolean)
+    .join('_');
+  return { partes, nomeArquivo: `${nome}.pdf` };
+}
+
+/* aaaa-mm-dd de hoje no horário de Brasília (só pro nome do arquivo) */
+function hojeBrasiliaISO() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 function opcoesFiltroRelatorio(lista, empresa, selecionado) {
