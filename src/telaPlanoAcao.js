@@ -30,7 +30,7 @@ export function criarEstadoPlanoAcao() {
     filtroEmpresa: '',
     filtroStatus: '', // '' | 'pendente' | 'concluido'
     filtroPrioridade: '', // '' | 'ALTA' | 'MÉDIA' | 'BAIXA' | '_sem_prioridade'
-    filtroVerificacaoId: null, // quando definido, mostra só as NCs dessa verificação
+    filtroVerificacaoId: null, // relatório (verificação) escolhido; '_sem_relatorio' = NCs de verificação apagada
     assinatura: null, // { responsavel_verificacao, responsavel_plano_acao, assinatura_plano_acao_em }
     carregandoAssinatura: false
   };
@@ -42,7 +42,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   const div = document.createElement('div');
   div.className = 'conteudo';
 
-  const avisoFiltro = estado.filtroVerificacaoId ? `
+  const avisoFiltro = estado.filtroVerificacaoId && estado.filtroVerificacaoId !== SEM_RELATORIO ? `
     <div class="linha" style="align-items:center;background:rgba(201,162,39,0.1);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
       <span style="flex:1;color:var(--cor-dourado-claro);font-size:13px;">Mostrando só as NCs desta verificação</span>
       <button class="botao botao--secundario" id="botao-limpar-filtro-verificacao" style="padding:6px 12px;font-size:12px;">Ver todas</button>
@@ -56,6 +56,11 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
 
     <div id="bloco-assinatura-plano"></div>
 
+    <div class="linha" style="margin-bottom:8px;">
+      <select id="filtro-relatorio-plano" style="flex:1;" aria-label="Relatório">
+        ${opcoesFiltroRelatorio(estado.lista, estado.filtroEmpresa, estado.filtroVerificacaoId)}
+      </select>
+    </div>
     <div class="linha" style="margin-bottom:12px;">
       <select id="filtro-empresa-plano" style="flex:1;">
         <option value="">Todas as empresas</option>
@@ -98,7 +103,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   });
 
   const blocoAssinatura = div.querySelector('#bloco-assinatura-plano');
-  if (estado.filtroVerificacaoId) {
+  if (estado.filtroVerificacaoId && estado.filtroVerificacaoId !== SEM_RELATORIO) {
     renderAssinatura(blocoAssinatura, estado, salvarEstado);
     if (!estado.assinatura && !estado.carregandoAssinatura) {
       estado.carregandoAssinatura = true;
@@ -122,8 +127,24 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
     estado.filtroEmpresa = div.querySelector('#filtro-empresa-plano').value;
     estado.filtroStatus = div.querySelector('#filtro-status-plano').value;
     estado.filtroPrioridade = div.querySelector('#filtro-prioridade-plano').value;
+    // Relatório escolhido que não é da empresa filtrada sai do filtro
+    if (estado.filtroVerificacaoId && estado.filtroEmpresa && estado.lista.length > 0) {
+      const aindaValido = listarRelatorios(estado.lista, estado.filtroEmpresa)
+        .some(r => r.id === estado.filtroVerificacaoId);
+      if (!aindaValido) {
+        estado.filtroVerificacaoId = null;
+        estado.assinatura = null;
+      }
+    }
     salvarEstado(estado);
   };
+  const filtroRelatorio = div.querySelector('#filtro-relatorio-plano');
+  filtroRelatorio.addEventListener('change', () => {
+    estado.filtroVerificacaoId = filtroRelatorio.value || null;
+    estado.assinatura = null;
+    estado.carregandoAssinatura = false;
+    salvarEstado(estado);
+  });
   div.querySelector('#filtro-empresa-plano').addEventListener('change', aplicarFiltro);
   div.querySelector('#filtro-status-plano').addEventListener('change', aplicarFiltro);
   div.querySelector('#filtro-prioridade-plano').addEventListener('change', aplicarFiltro);
@@ -139,8 +160,50 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
       estado.erroCarregamento = true;
     }
     estado.carregando = false;
+    filtroRelatorio.innerHTML = opcoesFiltroRelatorio(estado.lista, estado.filtroEmpresa, estado.filtroVerificacaoId);
     renderLista(listaPlano, estado, salvarEstado, abrirVerificacaoOrigem);
   }
+}
+
+export const SEM_RELATORIO = '_sem_relatorio';
+
+/* Relatórios (verificações) que têm NC, do mais recente pro mais antigo.
+   NCs sem empresa/data (verificação apagada) viram um grupo à parte. */
+export function listarRelatorios(lista, empresa) {
+  const porId = new Map();
+  let temOrfas = false;
+  (lista || []).forEach(nc => {
+    if (!nc.empresa || !nc.data) { temOrfas = true; return; }
+    if (empresa && nc.empresa !== empresa) return;
+    if (!porId.has(nc.verificacao_id)) {
+      porId.set(nc.verificacao_id, { id: nc.verificacao_id, empresa: nc.empresa, data: nc.data, folha: nc.folha, total: 0 });
+    }
+    porId.get(nc.verificacao_id).total++;
+  });
+  const relatorios = [...porId.values()].sort((a, b) =>
+    a.data !== b.data ? (a.data < b.data ? 1 : -1)
+      : a.empresa !== b.empresa ? a.empresa.localeCompare(b.empresa)
+        : Number(a.folha || 0) - Number(b.folha || 0));
+  relatorios.forEach(r => {
+    r.rotulo = `${formatarDataBR(r.data)} · ${r.empresa}${r.folha ? ` · Folha ${r.folha}` : ''}`;
+  });
+  if (temOrfas && !empresa) {
+    const total = lista.filter(nc => !nc.empresa || !nc.data).length;
+    relatorios.push({ id: SEM_RELATORIO, rotulo: 'Sem relatório (verificação apagada)', total });
+  }
+  return relatorios;
+}
+
+function opcoesFiltroRelatorio(lista, empresa, selecionado) {
+  const relatorios = listarRelatorios(lista, empresa);
+  let html = `<option value="">Todos os relatórios</option>` + relatorios.map(r =>
+    `<option value="${r.id}" ${r.id === selecionado ? 'selected' : ''}>${r.rotulo} (${r.total} NC${r.total > 1 ? 's' : ''})</option>`
+  ).join('');
+  // Veio do Histórico antes da lista carregar (ou verificação sem NC): mantém a seleção visível
+  if (selecionado && !relatorios.some(r => r.id === selecionado)) {
+    html += `<option value="${selecionado}" selected>Verificação selecionada</option>`;
+  }
+  return html;
 }
 
 function formatarDataBR(dataISO) {
@@ -228,7 +291,9 @@ function renderAssinatura(container, estado, salvarEstado) {
 
 export function filtrarLista(estado) {
   let lista = estado.lista;
-  if (estado.filtroVerificacaoId) {
+  if (estado.filtroVerificacaoId === SEM_RELATORIO) {
+    lista = lista.filter(i => !i.empresa || !i.data);
+  } else if (estado.filtroVerificacaoId) {
     lista = lista.filter(i => i.verificacao_id === estado.filtroVerificacaoId);
   }
   if (estado.filtroEmpresa) {
