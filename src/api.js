@@ -1,6 +1,6 @@
 import { API_URL } from './config.js';
 
-/* Gera um ID único no cliente (evita depender de resposta de POST no-cors) */
+/* Gera um ID único no cliente */
 export function gerarId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
@@ -20,14 +20,34 @@ async function get(action, params = {}) {
   return resposta.json();
 }
 
-/* ---------- POST (escrita — no-cors, fire-and-forget) ---------- */
+/* ---------- POST (escrita — resposta conferida) ----------
+   text/plain evita o preflight de CORS; o Apps Script segue o redirect e
+   devolve {ok:true} ou {ok:false, erro}. Qualquer falha vira exceção. */
 
 async function post(action, dados) {
-  await fetch(API_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: JSON.stringify({ action, dados })
-  });
+  let resposta;
+  try {
+    resposta = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, dados })
+    });
+  } catch (e) {
+    throw new Error('Sem conexão com o servidor');
+  }
+
+  let resultado = null;
+  try {
+    resultado = await resposta.json();
+  } catch (e) {
+    resultado = null;
+  }
+
+  if (!resposta.ok || !resultado || resultado.ok !== true) {
+    // sem ponto final: a tela completa a frase ("Não foi salvo: <erro>. Tente de novo.")
+    throw new Error(String((resultado && resultado.erro) || 'Falha ao salvar').replace(/[.\s]+$/, ''));
+  }
+  return resultado;
 }
 
 /* ---------- API pública ---------- */

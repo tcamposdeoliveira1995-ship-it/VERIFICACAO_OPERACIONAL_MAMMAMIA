@@ -52,9 +52,13 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
 
   if (estado.carregando) {
     try {
-      estado.lista = await listarNaoConformidades();
+      const resultado = await listarNaoConformidades();
+      if (!Array.isArray(resultado)) throw new Error((resultado && resultado.erro) || 'Resposta inválida');
+      estado.lista = resultado;
+      estado.erroCarregamento = false;
     } catch (e) {
       estado.lista = [];
+      estado.erroCarregamento = true;
     }
     estado.carregando = false;
     renderGrupos(gruposPainel, estado, salvarEstado, abrirVerificacaoOrigem);
@@ -71,6 +75,10 @@ function formatarDataBR(dataISO) {
 function renderGrupos(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   if (estado.carregando) {
     container.innerHTML = `<div class="estado-vazio">Carregando...</div>`;
+    return;
+  }
+  if (estado.erroCarregamento) {
+    container.innerHTML = `<div class="estado-vazio" style="color:var(--cor-nao-conforme);" data-erro-carregamento>Erro ao carregar os dados. Recarregue a página.</div>`;
     return;
   }
 
