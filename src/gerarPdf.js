@@ -97,7 +97,11 @@ function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não defini
   const alturaLinha = tamanho * 0.46;
   const alturaTotal = 3.8 + linhas.length * alturaLinha;
 
-  if (novaPaginaSeNecessario) novaPaginaSeNecessario(alturaTotal);
+  // novaPaginaSeNecessario devolve o y a usar (18 se abriu página nova).
+  // Pede o campo inteiro; se ele sozinho for maior que ~1 página, pede só rótulo + 3 linhas.
+  if (novaPaginaSeNecessario) {
+    y = novaPaginaSeNecessario(alturaTotal <= 240 ? alturaTotal : 3.8 + 3 * alturaLinha, y);
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
@@ -107,9 +111,27 @@ function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não defini
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(tamanho);
   doc.setTextColor(...(texto ? cor : COR_SUAVE));
-  doc.text(linhas, x, y + 4);
 
-  return y + 4 + linhas.length * alturaLinha;
+  if (!novaPaginaSeNecessario) {
+    doc.text(linhas, x, y + 4);
+    return y + 4 + linhas.length * alturaLinha;
+  }
+
+  // Linha a linha: um texto muito longo continua na página seguinte em vez de vazar pelo rodapé
+  let yLinha = y + 4;
+  linhas.forEach(linha => {
+    const yAntes = yLinha;
+    yLinha = novaPaginaSeNecessario(alturaLinha, yLinha);
+    if (yLinha !== yAntes) {
+      yLinha += 3;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(tamanho);
+      doc.setTextColor(...(texto ? cor : COR_SUAVE));
+    }
+    doc.text(linha, x, yLinha);
+    yLinha += alturaLinha;
+  });
+  return yLinha;
 }
 
 function desenharSelo(doc, texto, x, y, cor, alinharDireita) {
@@ -127,7 +149,7 @@ function desenharFotos(doc, { x, y, largura, fotosBase64, novaPaginaSeNecessario
   const espacoFoto = 4;
   const fotosPorLinha = Math.max(1, Math.floor(largura / (larguraFoto + espacoFoto)));
 
-  if (novaPaginaSeNecessario) novaPaginaSeNecessario(alturaFoto + 8);
+  if (novaPaginaSeNecessario) y = novaPaginaSeNecessario(alturaFoto + 8, y);
 
   if (rotulo) {
     doc.setFont('helvetica', 'bold');
@@ -146,7 +168,7 @@ function desenharFotos(doc, { x, y, largura, fotosBase64, novaPaginaSeNecessario
       xFoto = x;
       contadorNaLinha = 0;
       yAtual += alturaFoto + espacoFoto;
-      if (novaPaginaSeNecessario) novaPaginaSeNecessario(alturaFoto + 4);
+      if (novaPaginaSeNecessario) yAtual = novaPaginaSeNecessario(alturaFoto + 4, yAtual);
     }
     try {
       const formato = base64.includes('image/png') ? 'PNG' : 'JPEG';
@@ -194,12 +216,16 @@ function renderizarVerificacao(doc, dados) {
   const margemDireita = 16;
   const larguraUtil = doc.internal.pageSize.getWidth() - margemEsquerda - margemDireita;
 
-  function novaPaginaSeNecessario(alturaNecessaria) {
+  /* Abre página nova se não couber. yAtual: o y de quem chamou (helpers têm o
+     próprio y local). Devolve o y a usar dali em diante (18 se abriu página). */
+  function novaPaginaSeNecessario(alturaNecessaria, yAtual = y) {
     const alturaPagina = doc.internal.pageSize.getHeight();
-    if (y + alturaNecessaria > alturaPagina - 20) {
+    if (yAtual + alturaNecessaria > alturaPagina - 20) {
       doc.addPage();
       y = 18;
+      return y;
     }
+    return yAtual;
   }
 
   let y = desenharCabecalho(doc, {
@@ -412,22 +438,72 @@ export function gerarPdfConsolidado(listaDeDados, nomeArquivo) {
    próprio, não mais tudo numa linha só) e a foto de resolução, se houver.
    Termina com uma barra colorida à esquerda (prioridade, ou verde se já
    concluída) e uma borda fina ao redor do cartão inteiro. Devolve o y seguinte. */
+/* "Doc" de medição: calcula quebras de linha e alturas como o doc real, mas
+   não desenha nada (text/rect/line/addImage viram no-op). */
+function criarMedidor(doc) {
+  const ignorar = new Set(['text', 'rect', 'line', 'addImage']);
+  const medidor = new Proxy(doc, {
+    get(alvo, prop) {
+      if (ignorar.has(prop)) return () => medidor;
+      const valor = alvo[prop];
+      return typeof valor === 'function' ? valor.bind(alvo) : valor;
+    }
+  });
+  return medidor;
+}
+
+/* Cartão de NC sem quebra no meio: mede a altura inteira antes de desenhar e,
+   se não couber no resto da página, começa na página seguinte. Só um cartão
+   maior que uma página inteira é dividido (com moldura fechada em cada parte). */
 function desenharCartaoNaoConformidade(doc, opcoes) {
+  const alturaCartao = desenharConteudoCartaoNC(criarMedidor(doc), {
+    ...opcoes, y: 0, novaPaginaSeNecessario: (altura, yAtual) => yAtual
+  }) - 5; // o retorno inclui 6 mm de espaço depois do cartão
+  const alturaUtilPagina = doc.internal.pageSize.getHeight() - 18 - 20;
+  // Cabe numa página: começa onde houver espaço pro cartão inteiro. Não cabe: começa já (com ~40 mm livres) e continua na seguinte.
+  const y = opcoes.novaPaginaSeNecessario(alturaCartao <= alturaUtilPagina ? alturaCartao : 40, opcoes.y);
+  return desenharConteudoCartaoNC(doc, { ...opcoes, y });
+}
+
+function desenharConteudoCartaoNC(doc, opcoes) {
   const {
     margemEsquerda, larguraUtil, novaPaginaSeNecessario, y: yInicial,
     cabecalho, prioridadeSelo, descricao, acaoCorretiva, responsavel,
     dataPrevista, dataRealizada, fotoResolucao
   } = opcoes;
 
-  novaPaginaSeNecessario(30);
   let y = yInicial;
-  const boxY = y;
+  let boxY = y;
   const xConteudo = margemEsquerda + 5;
   const larguraConteudo = larguraUtil - 9;
 
   const prioridade = prioridadeSelo !== undefined ? prioridadeSelo : extrairPrioridade(acaoCorretiva);
   const textoAcaoCorretiva = prioridadeSelo !== undefined ? acaoCorretiva : removerPrefixoPrioridade(acaoCorretiva);
   const concluida = !!dataRealizada;
+
+  const desenharMoldura = (topo, fim) => {
+    doc.setDrawColor(...COR_BORDA);
+    doc.setLineWidth(0.2);
+    doc.rect(margemEsquerda, topo - 3, larguraUtil, fim - topo + 2);
+    doc.setDrawColor(...(concluida ? COR_CONFORME : (COR_PRIORIDADE[prioridade] || COR_SUAVE)));
+    doc.setLineWidth(1.1);
+    doc.line(margemEsquerda + 0.6, topo - 3, margemEsquerda + 0.6, fim - 1);
+  };
+
+  /* Quebra dentro do cartão (só acontece se ele for maior que uma página):
+     fecha a moldura da parte anterior na página de trás e continua na nova. */
+  const quebra = (alturaNecessaria, yAtual) => {
+    const paginasAntes = doc.getNumberOfPages();
+    const novoY = novaPaginaSeNecessario(alturaNecessaria, yAtual);
+    if (doc.getNumberOfPages() !== paginasAntes) {
+      const paginaAtual = doc.getCurrentPageInfo().pageNumber;
+      doc.setPage(paginaAtual - 1);
+      desenharMoldura(boxY, yAtual);
+      doc.setPage(paginaAtual);
+      boxY = novoY + 3;
+    }
+    return novoY;
+  };
 
   y += 1;
   doc.setFont('helvetica', 'bold');
@@ -445,39 +521,33 @@ function desenharCartaoNaoConformidade(doc, opcoes) {
   y = desenharCampo(doc, {
     x: xConteudo, y, largura: larguraConteudo,
     rotulo: 'Descrição da não conformidade', valor: descricao, vazio: '(sem descrição)',
-    novaPaginaSeNecessario
+    novaPaginaSeNecessario: quebra
   }) + 2.5;
 
   y = desenharCampo(doc, {
     x: xConteudo, y, largura: larguraConteudo,
     rotulo: 'Ação corretiva', valor: textoAcaoCorretiva, vazio: '(ação corretiva ainda não definida)',
-    novaPaginaSeNecessario
+    novaPaginaSeNecessario: quebra
   }) + 2.5;
 
-  novaPaginaSeNecessario(9);
+  y = quebra(9, y);
   y = desenharCampo(doc, {
     x: xConteudo, y, largura: larguraConteudo,
     rotulo: 'Responsável', valor: responsavel, tamanho: 9,
-    novaPaginaSeNecessario
+    novaPaginaSeNecessario: quebra
   }) + 2.5;
 
-  novaPaginaSeNecessario(9);
+  y = quebra(9, y);
   const largMetade = (larguraConteudo - 8) / 2;
   const yPrevista = desenharCampo(doc, { x: xConteudo, y, largura: largMetade, rotulo: 'Prevista', valor: dataPrevista ? formatarDataBR(dataPrevista) : '', vazio: 'Não definida', tamanho: 9 });
   const yRealizada = desenharCampo(doc, { x: xConteudo + largMetade + 8, y, largura: largMetade, rotulo: 'Realizada', valor: dataRealizada ? formatarDataBR(dataRealizada) : '', vazio: 'Pendente', cor: concluida ? COR_CONFORME : COR_NAO_CONFORME, tamanho: 9 });
   y = Math.max(yPrevista, yRealizada) + 2.5;
 
   if (fotoResolucao) {
-    y = desenharFotos(doc, { x: xConteudo, y, largura: larguraConteudo, fotosBase64: [fotoResolucao], rotulo: 'Foto da resolução', novaPaginaSeNecessario }) + 1;
+    y = desenharFotos(doc, { x: xConteudo, y, largura: larguraConteudo, fotosBase64: [fotoResolucao], rotulo: 'Foto da resolução', novaPaginaSeNecessario: quebra }) + 1;
   }
 
-  doc.setDrawColor(...COR_BORDA);
-  doc.setLineWidth(0.2);
-  doc.rect(margemEsquerda, boxY - 3, larguraUtil, y - boxY + 2);
-
-  doc.setDrawColor(...(concluida ? COR_CONFORME : (COR_PRIORIDADE[prioridade] || COR_SUAVE)));
-  doc.setLineWidth(1.1);
-  doc.line(margemEsquerda + 0.6, boxY - 3, margemEsquerda + 0.6, y - 1);
+  desenharMoldura(boxY, y);
 
   return y + 6;
 }
@@ -503,12 +573,15 @@ export function gerarPdfPlanoAcao(lista, nomeArquivo) {
     subtitulo: `${lista.length} não conformidade(s) · Gerado em ${new Date().toLocaleString('pt-BR')}`
   });
 
-  function novaPaginaSeNecessario(alturaNecessaria) {
+  /* Mesma regra de renderizarVerificacao: recebe o y de quem chamou e devolve o y a usar. */
+  function novaPaginaSeNecessario(alturaNecessaria, yAtual = y) {
     const alturaPagina = doc.internal.pageSize.getHeight();
-    if (y + alturaNecessaria > alturaPagina - 16) {
+    if (yAtual + alturaNecessaria > alturaPagina - 16) {
       doc.addPage();
       y = 18;
+      return y;
     }
+    return yAtual;
   }
 
   lista.forEach(nc => {
