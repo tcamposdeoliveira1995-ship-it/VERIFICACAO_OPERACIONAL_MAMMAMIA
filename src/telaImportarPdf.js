@@ -9,7 +9,10 @@ import {
   salvarPlanoAcao,
   anexarDocumento,
   arquivoGenericoParaBase64,
-  arquivoParaBase64
+  arquivoParaBase64,
+  obterVerificacao,
+  gravarConfirmado,
+  comprimirDataUrl
 } from './api.js';
 
 const ORDEM_PRIORIDADE = { ALTA: 3, 'MÉDIA': 2, BAIXA: 1 };
@@ -35,7 +38,9 @@ export function criarEstadoImportarPdf() {
     responsavelAuditoria: '',
     responsavelEmpresa: '',
     observacao: '',
-    verificacaoId: null
+    verificacaoId: null,
+    importacaoId: null, // ID reaproveitado entre tentativas (não duplica cabeçalho)
+    importacaoFolha: null
   };
 }
 
@@ -260,7 +265,7 @@ function renderRevisao(container, estado, salvarEstado, irParaPlanoAcao) {
     salvarImportacao(estado, salvarEstado, irParaPlanoAcao).catch(e => {
       estado.salvando = false;
       salvarEstado(estado);
-      alert(`A importação parou no meio: ${e.message}. Confira no Histórico o que já foi gravado antes de tentar de novo.`);
+      alert(`A importação parou no meio (${e.message}). O que já foi gravado fica guardado: clique em "Confirmar e salvar" de novo que ela continua de onde parou, sem duplicar.`);
     });
   });
 }
@@ -372,54 +377,104 @@ async function salvarImportacao(estado, salvarEstado, irParaPlanoAcao) {
   estado.salvando = true;
   salvarEstado(estado);
 
-  const verificacaoId = gerarId();
+  // Reaproveita o mesmo ID se for uma nova tentativa: nunca duplica o cabeçalho.
+  const novaTentativa = !!estado.importacaoId;
+  if (!estado.importacaoId) estado.importacaoId = gerarId();
+  const verificacaoId = estado.importacaoId;
 
-  let folha = 1;
-  try {
-    const contagem = await contarFolhas(estado.empresa, estado.data);
-    folha = contagem + 1;
-  } catch (e) {
-    folha = 1;
+  // Lê o que já está gravado desta importação (null = nada ainda)
+  const lerServidor = async () => {
+    const r = await obterVerificacao(verificacaoId);
+    return r && r.verificacao ? r : null;
+  };
+  let gravado = null;
+  if (novaTentativa) {
+    // Nova tentativa: PRECISA saber o que já foi gravado antes de mandar de novo.
+    try {
+      gravado = await lerServidor();
+    } catch (e) {
+      throw new Error('não consegui conferir o que já foi gravado (' + e.message + ')');
+    }
   }
 
-  await criarVerificacao({
-    id: verificacaoId,
-    empresa: estado.empresa,
-    data: estado.data,
-    horario_inicio: estado.horarioInicio.trim(),
-    responsavel_verificacao: estado.responsavelVerificacao.trim(),
-    folha,
-    timestamp_criacao: new Date().toISOString()
-  });
+  if (!gravado) {
+    let folha = estado.importacaoFolha || 1;
+    if (!estado.importacaoFolha) {
+      try {
+        folha = (await contarFolhas(estado.empresa, estado.data)) + 1;
+      } catch (e) {
+        folha = 1;
+      }
+      estado.importacaoFolha = folha;
+    }
+    await gravarConfirmado(
+      () => criarVerificacao({
+        id: verificacaoId,
+        empresa: estado.empresa,
+        data: estado.data,
+        horario_inicio: estado.horarioInicio.trim(),
+        responsavel_verificacao: estado.responsavelVerificacao.trim(),
+        folha,
+        timestamp_criacao: new Date().toISOString()
+      }),
+      async () => !!(await lerServidor())
+    );
+    gravado = { itens: [] };
+  }
 
-  // Gravação sequencial (uma requisição por vez). Agora cada POST confere
-  // a resposta do servidor: se uma gravação falhar, a importação para e avisa.
+  const itemGravado = numero => (gravado.itens || []).some(i => String(i.numero_item) === String(numero));
+  const planoGravado = numero => (gravado.itens || []).some(i => String(i.numero_item) === String(numero) && i.acao_corretiva);
+  const atualizarGravado = async () => { gravado = (await lerServidor()) || gravado; };
+
+  // Sequencial; cada item já gravado é pulado. Fotos do PDF são reduzidas antes.
   for (const item of estado.itensRevisao) {
-    await salvarItem({
-      verificacao_id: verificacaoId,
-      numero_item: item.numero,
-      nome_item: item.nome,
-      status: item.status,
-      descricao: item.status === 'NC' ? item.descricao : '',
-      empresa: estado.empresa,
-      data: estado.data,
-      ...(item.status === 'NC' && item.fotos && item.fotos.length > 0 ? { fotosBase64: item.fotos } : {})
-    });
+    if (itemGravado(item.numero)) continue;
+    let fotos = [];
+    if (item.status === 'NC' && item.fotos && item.fotos.length > 0) {
+      fotos = await Promise.all(item.fotos.map(f => comprimirDataUrl(f)));
+    }
+    try {
+      await gravarConfirmado(
+        () => salvarItem({
+          verificacao_id: verificacaoId,
+          numero_item: item.numero,
+          nome_item: item.nome,
+          status: item.status,
+          descricao: item.status === 'NC' ? item.descricao : '',
+          empresa: estado.empresa,
+          data: estado.data,
+          ...(fotos.length > 0 ? { fotosBase64: fotos } : {})
+        }),
+        async () => { await atualizarGravado(); return itemGravado(item.numero); }
+      );
+    } catch (e) {
+      e.message = `item ${item.numero}: ${e.message}`;
+      throw e;
+    }
   }
 
   const itensNC = estado.itensRevisao.filter(item => item.status === 'NC');
   for (const item of itensNC) {
-    await salvarPlanoAcao({
-      verificacao_id: verificacaoId,
-      numero_item: item.numero,
-      acao_corretiva: `[${item.prioridade}] ${item.acaoCorretiva}`,
-      responsavel: '',
-      data_prevista: '',
-      data_realizada: ''
-    });
+    if (planoGravado(item.numero)) continue;
+    try {
+      await gravarConfirmado(
+        () => salvarPlanoAcao({
+          verificacao_id: verificacaoId,
+          numero_item: item.numero,
+          acao_corretiva: `[${item.prioridade}] ${item.acaoCorretiva}`,
+          responsavel: '',
+          data_prevista: '',
+          data_realizada: ''
+        }),
+        async () => { await atualizarGravado(); return planoGravado(item.numero); }
+      );
+    } catch (e) {
+      e.message = `plano do item ${item.numero}: ${e.message}`;
+      throw e;
+    }
   }
 
-  if (estado.arquivoOriginal) {
+  if (estado.arquivoOriginal && !(gravado.verificacao && gravado.verificacao.documento_url)) {
     try {
       const base64 = await arquivoGenericoParaBase64(estado.arquivoOriginal);
       await anexarDocumento({
@@ -434,14 +489,20 @@ async function salvarImportacao(estado, salvarEstado, irParaPlanoAcao) {
     }
   }
 
-  await finalizarVerificacao({
-    verificacao_id: verificacaoId,
-    responsavel_auditoria: estado.responsavelAuditoria.trim(),
-    responsavel_empresa: estado.responsavelEmpresa.trim(),
-    observacao: estado.observacao.trim(),
-    confirmado_em: new Date().toISOString()
-  });
+  // finalizar é uma atualização da mesma linha: repetir não duplica
+  await gravarConfirmado(
+    () => finalizarVerificacao({
+      verificacao_id: verificacaoId,
+      responsavel_auditoria: estado.responsavelAuditoria.trim(),
+      responsavel_empresa: estado.responsavelEmpresa.trim(),
+      observacao: estado.observacao.trim(),
+      confirmado_em: new Date().toISOString()
+    }),
+    async () => { await atualizarGravado(); return !!(gravado.verificacao && gravado.verificacao.confirmado_em); }
+  );
 
+  estado.importacaoId = null;
+  estado.importacaoFolha = null;
   estado.verificacaoId = verificacaoId;
   estado.salvando = false;
   estado.etapa = 'concluido';
