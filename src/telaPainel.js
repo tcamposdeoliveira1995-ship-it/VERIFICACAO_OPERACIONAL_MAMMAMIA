@@ -1,6 +1,6 @@
 import { listarNaoConformidades } from './api.js';
 import { EMPRESAS } from './config.js';
-import { montarCartaoNC, extrairPrioridade } from './telaPlanoAcao.js';
+import { montarCartaoNC, extrairPrioridade, listarRelatorios } from './telaPlanoAcao.js';
 
 const PRIORIDADES = ['ALTA', 'MÉDIA', 'BAIXA'];
 
@@ -9,7 +9,8 @@ export function criarEstadoPainel() {
     lista: [],
     carregando: true,
     mostrarConcluidas: false,
-    filtroPrioridade: '' // '' | 'ALTA' | 'MÉDIA' | 'BAIXA'
+    filtroPrioridade: '', // '' | 'ALTA' | 'MÉDIA' | 'BAIXA'
+    filtroRelatorio: '' // '' | verificacao_id
   };
 }
 
@@ -27,6 +28,7 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
         <input type="checkbox" id="toggle-concluidas" ${estado.mostrarConcluidas ? 'checked' : ''} style="width:auto;" />
         Mostrar também as já concluídas
       </label>
+      <select id="filtro-relatorio-painel" style="max-width:280px;" aria-label="Relatório"></select>
       <select id="filtro-prioridade-painel" style="max-width:220px;">
         <option value="">Todas as prioridades</option>
         ${PRIORIDADES.map(p => `<option value="${p}" ${estado.filtroPrioridade === p ? 'selected' : ''}>${p}</option>`).join('')}
@@ -42,6 +44,19 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
 
   div.querySelector('#toggle-concluidas').addEventListener('change', e => {
     estado.mostrarConcluidas = e.target.checked;
+    salvarEstado(estado);
+  });
+
+  // Painel já agrupa por empresa e data e não mostra NCs de verificação apagada
+  const filtroRelatorio = div.querySelector('#filtro-relatorio-painel');
+  const preencherRelatorios = () => {
+    const relatorios = listarRelatorios(estado.lista).filter(r => r.id !== '_sem_relatorio');
+    filtroRelatorio.innerHTML = `<option value="">Todos os relatórios</option>` + relatorios.map(r =>
+      `<option value="${r.id}" ${r.id === estado.filtroRelatorio ? 'selected' : ''}>${r.rotulo}</option>`).join('');
+  };
+  preencherRelatorios();
+  filtroRelatorio.addEventListener('change', e => {
+    estado.filtroRelatorio = e.target.value;
     salvarEstado(estado);
   });
 
@@ -61,6 +76,7 @@ export async function montarTelaPainel(container, estado, salvarEstado, abrirVer
       estado.erroCarregamento = true;
     }
     estado.carregando = false;
+    preencherRelatorios();
     renderGrupos(gruposPainel, estado, salvarEstado, abrirVerificacaoOrigem);
   }
 }
@@ -85,7 +101,8 @@ function renderGrupos(container, estado, salvarEstado, abrirVerificacaoOrigem) {
   const lista = (estado.mostrarConcluidas
     ? estado.lista
     : estado.lista.filter(nc => !nc.data_realizada)
-  ).filter(nc => !estado.filtroPrioridade || extrairPrioridade(nc.acao_corretiva) === estado.filtroPrioridade);
+  ).filter(nc => !estado.filtroPrioridade || extrairPrioridade(nc.acao_corretiva) === estado.filtroPrioridade)
+    .filter(nc => !estado.filtroRelatorio || nc.verificacao_id === estado.filtroRelatorio);
 
   if (lista.length === 0) {
     container.innerHTML = `<div class="estado-vazio">Nenhuma não conformidade pendente. 🎉</div>`;

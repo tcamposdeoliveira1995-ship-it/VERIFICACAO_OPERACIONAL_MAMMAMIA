@@ -67,8 +67,11 @@ function desenharCabecalho(doc, { margemEsquerda, larguraUtil, titulo, subtitulo
 
   doc.setFontSize(15);
   doc.setTextColor(...COR_TEXTO);
-  doc.text(titulo, margemEsquerda, y);
-  y += 6;
+  // Título pode ser longo (ex.: com os filtros do Plano de Ação): quebra em mais linhas.
+  // Se vier como lista de partes, só quebra entre partes ("A · B · C"), nunca no meio de uma.
+  const linhasTitulo = Array.isArray(titulo) ? quebrarPorPartes(doc, titulo, larguraUtil) : doc.splitTextToSize(titulo, larguraUtil);
+  doc.text(linhasTitulo, margemEsquerda, y);
+  y += 6 + (linhasTitulo.length - 1) * 6.2;
 
   doc.setDrawColor(...COR_DOURADO);
   doc.setLineWidth(0.5);
@@ -562,15 +565,48 @@ function resolverFotoBase64(nc) {
   return '';
 }
 
-export function gerarPdfPlanoAcao(lista, nomeArquivo) {
+function quebrarPorPartes(doc, partes, largura) {
+  const linhas = [];
+  let atual = '';
+  partes.forEach((parte, i) => {
+    const sep = i < partes.length - 1 ? ' ·' : '';
+    const tentativa = atual ? `${atual} ${parte}${sep}` : `${parte}${sep}`;
+    if (atual && doc.getTextWidth(tentativa) > largura) {
+      linhas.push(atual);
+      atual = `${parte}${sep}`;
+    } else {
+      atual = tentativa;
+    }
+  });
+  if (atual) linhas.push(atual);
+  return linhas.flatMap(l => doc.splitTextToSize(l, largura));
+}
+
+/* "dd/mm/aaaa hh:mm" no horário de Brasília (padrão do sistema) */
+function agoraBrasilia() {
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(new Date()).map(p => [p.type, p.value]));
+  return `${partes.day}/${partes.month}/${partes.year} ${partes.hour}:${partes.minute}`;
+}
+
+/* filtros.partes (opcional): textos dos filtros ativos, ex. ['08/10/2026 · YUKA · Folha 1', 'NCs resolvidas'].
+   Com filtros, o título vira "PLANO DE AÇÃO · <filtros> · N não conformidade(s)". */
+export function gerarPdfPlanoAcao(lista, nomeArquivo, filtros = {}) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const margemEsquerda = 16;
   const larguraUtil = doc.internal.pageSize.getWidth() - margemEsquerda * 2;
+  const partesFiltro = (filtros.partes || []).filter(Boolean);
   let y = desenharCabecalho(doc, {
     margemEsquerda,
     larguraUtil,
-    titulo: 'PLANO DE AÇÃO',
-    subtitulo: `${lista.length} não conformidade(s) · Gerado em ${new Date().toLocaleString('pt-BR')}`
+    titulo: partesFiltro.length
+      ? ['PLANO DE AÇÃO', ...partesFiltro, `${lista.length} não conformidade(s)`]
+      : 'PLANO DE AÇÃO',
+    subtitulo: partesFiltro.length
+      ? `Gerado em ${agoraBrasilia()}`
+      : `${lista.length} não conformidade(s) · Gerado em ${agoraBrasilia()}`
   });
 
   /* Mesma regra de renderizarVerificacao: recebe o y de quem chamou e devolve o y a usar. */
