@@ -43,7 +43,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   div.className = 'conteudo';
 
   const avisoFiltro = estado.filtroVerificacaoId && estado.filtroVerificacaoId !== SEM_RELATORIO ? `
-    <div class="linha" style="align-items:center;background:rgba(201,162,39,0.1);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
+    <div class="linha" style="align-items:center;background:rgba(33,31,28,0.06);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
       <span style="flex:1;color:var(--cor-dourado-claro);font-size:13px;">Mostrando só as NCs desta verificação</span>
       <button class="botao botao--secundario" id="botao-limpar-filtro-verificacao" style="padding:6px 12px;font-size:12px;">Ver todas</button>
     </div>

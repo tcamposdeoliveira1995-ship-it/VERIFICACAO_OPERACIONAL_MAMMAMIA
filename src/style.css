@@ -1,6 +1,6 @@
 /* ============================================================
    VERIFICAÇÃO TÉCNICA OPERACIONAL — Design tokens
-   Paleta: creme + dourado (identidade Mamma Mia — TEMA CLARO)
+   Paleta: creme + preto (identidade Mamma Mia — TEMA CLARO)
    ============================================================ */
 
 :root {
@@ -10,8 +10,10 @@
   --cor-superficie-alta: #f2efe7;
   --cor-borda: #e2ddd0;
 
-  --cor-dourado: #ab8620;
-  --cor-dourado-claro: #c9a227;
+  /* Nome mantido por compatibilidade com o resto do código, mas a cor de
+     destaque da marca é preto (logo Mamma Mia), não mais dourado. */
+  --cor-dourado: #211f1c;
+  --cor-dourado-claro: #4a463e;
 
   --cor-texto: #211f1c;
   --cor-texto-suave: #6f6b62;
@@ -115,6 +117,10 @@ html, body {
 .sidebar__botao--ativo {
   background: var(--cor-dourado);
   color: #fff;
+}
+
+.sidebar__botao--ativo:hover {
+  background: var(--cor-dourado);
 }
 
 .sidebar__icone {
@@ -281,7 +287,7 @@ input::placeholder, textarea::placeholder {
 
 .seletor-empresa__opcao--ativa {
   border-color: var(--cor-dourado);
-  background: rgba(171, 134, 32, 0.08);
+  background: rgba(33, 31, 28, 0.06);
   color: var(--cor-dourado);
 }
 
