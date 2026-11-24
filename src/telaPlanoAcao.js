@@ -23,6 +23,35 @@ function combinarPrioridadeETexto(prioridade, texto) {
   return prioridade ? `[${prioridade}] ${texto}` : texto;
 }
 
+/* listarNaoConformidades() não baixa mais as fotos de resolução do Drive
+   (isso fazia a tela ficar cada vez mais lenta conforme mais NCs resolvidas
+   com foto se acumulavam ao longo das semanas) — a lista traz só um link do
+   Drive, que já é exibível direto num <img>, mas o jsPDF não consegue
+   embutir num PDF sem o base64. Por isso resolvemos em base64 só aqui, sob
+   demanda, e só para as NCs que realmente vão entrar no PDF pedido. Busca
+   cada verificação distinta em paralelo (uma chamada por verificação, não
+   por NC) e devolve cópias das NCs já com a foto resolvida. */
+async function resolverFotosParaPdf(lista) {
+  const pendentes = lista.filter(nc => nc.foto_resolucao && !nc.foto_resolucao.startsWith('data:') && !nc._fotoResolucaoPreview);
+  if (pendentes.length === 0) return lista;
+
+  const idsUnicos = [...new Set(pendentes.map(nc => nc.verificacao_id))];
+  const detalhes = await Promise.all(idsUnicos.map(id => obterVerificacao(id).catch(() => null)));
+
+  const fotoPorChave = new Map();
+  detalhes.forEach(detalhe => {
+    if (!detalhe || !detalhe.verificacao || !detalhe.itens) return;
+    detalhe.itens.forEach(item => {
+      if (item.foto_resolucao) fotoPorChave.set(detalhe.verificacao.id + '__' + item.numero_item, item.foto_resolucao);
+    });
+  });
+
+  return lista.map(nc => {
+    const fotoResolvida = fotoPorChave.get(nc.verificacao_id + '__' + nc.numero_item);
+    return fotoResolvida ? { ...nc, foto_resolucao: fotoResolvida } : nc;
+  });
+}
+
 export function criarEstadoPlanoAcao() {
   return {
     lista: [],
@@ -43,7 +72,7 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
   div.className = 'conteudo';
 
   const avisoFiltro = estado.filtroVerificacaoId && estado.filtroVerificacaoId !== SEM_RELATORIO ? `
-    <div class="linha" style="align-items:center;background:rgba(201,162,39,0.1);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
+    <div class="linha" style="align-items:center;background:rgba(33,31,28,0.06);border:1px solid var(--cor-dourado);border-radius:var(--raio-pequeno);padding:10px 14px;margin-bottom:16px;">
       <span style="flex:1;color:var(--cor-dourado-claro);font-size:13px;">Mostrando só as NCs desta verificação</span>
       <button class="botao botao--secundario" id="botao-limpar-filtro-verificacao" style="padding:6px 12px;font-size:12px;">Ver todas</button>
     </div>
@@ -93,14 +122,24 @@ export async function montarTelaPlanoAcao(container, estado, salvarEstado, abrir
     });
   }
 
-  div.querySelector('#botao-pdf-plano').addEventListener('click', () => {
+  div.querySelector('#botao-pdf-plano').addEventListener('click', async (e) => {
     const listaFiltrada = filtrarLista(estado);
     if (listaFiltrada.length === 0) {
       alert('Nenhuma não conformidade para gerar PDF com os filtros atuais.');
       return;
     }
-    const { partes, nomeArquivo } = descreverFiltrosParaPdf(estado);
-    gerarPdfPlanoAcao(listaFiltrada, nomeArquivo, { partes });
+    const botao = e.currentTarget;
+    const textoOriginal = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = 'Gerando PDF...';
+    try {
+      const listaComFotos = await resolverFotosParaPdf(listaFiltrada);
+      const { partes, nomeArquivo } = descreverFiltrosParaPdf(estado);
+      gerarPdfPlanoAcao(listaComFotos, nomeArquivo, { partes });
+    } finally {
+      botao.disabled = false;
+      botao.textContent = textoOriginal;
+    }
   });
 
   const blocoAssinatura = div.querySelector('#bloco-assinatura-plano');
@@ -601,8 +640,18 @@ export function montarCartaoNC(nc, salvarEstado, estado, abrirVerificacaoOrigem)
     salvarEstado(estado);
   });
 
-  cartao.querySelector('#botao-pdf-nc').addEventListener('click', () => {
-    gerarPdfNaoConformidade(nc);
+  cartao.querySelector('#botao-pdf-nc').addEventListener('click', async e => {
+    const botao = e.currentTarget;
+    const textoOriginal = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = 'Gerando PDF...';
+    try {
+      const [ncComFoto] = await resolverFotosParaPdf([nc]);
+      gerarPdfNaoConformidade(ncComFoto);
+    } finally {
+      botao.disabled = false;
+      botao.textContent = textoOriginal;
+    }
   });
 
   cartao.querySelector('#botao-ver-origem').addEventListener('click', () => {

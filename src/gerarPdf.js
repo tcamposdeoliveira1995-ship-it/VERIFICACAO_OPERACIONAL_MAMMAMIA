@@ -1,11 +1,11 @@
 import { jsPDF } from 'jspdf';
 
-const COR_DOURADO = [201, 162, 39];
+// Cor de destaque da marca: preto (logo Mamma Mia), não mais dourado.
+const COR_DOURADO = [30, 28, 24];
 const COR_TEXTO = [30, 28, 24];
 const COR_SUAVE = [110, 105, 96];
 const COR_CONFORME = [60, 120, 85];
 const COR_NAO_CONFORME = [180, 55, 45];
-const COR_ALERTA = [201, 140, 39];
 const COR_BORDA = [225, 219, 205];
 // Status das NCs nos cartões do PDF: mesmas cores do app (--cor-nao-conforme / --cor-conforme em style.css)
 const COR_PENDENTE = [184, 57, 47];        // #b8392f
@@ -13,7 +13,7 @@ const COR_PENDENTE_FUNDO = [253, 236, 236]; // #FDECEC
 const COR_RESOLVIDA = [47, 122, 77];       // #2f7a4d
 
 const REGEX_PREFIXO_PRIORIDADE = /^\[(ALTA|M[ÉE]DIA|BAIXA)\]\s*/i;
-const COR_PRIORIDADE = { ALTA: COR_NAO_CONFORME, 'MÉDIA': COR_ALERTA, BAIXA: COR_SUAVE };
+const COR_PRIORIDADE = { ALTA: COR_NAO_CONFORME, 'MÉDIA': COR_DOURADO, BAIXA: COR_SUAVE };
 
 /* A prioridade vem embutida como prefixo "[ALTA] " no início do texto da ação
    corretiva (mesma convenção de src/telaPlanoAcao.js) — separamos aqui pra
@@ -100,6 +100,11 @@ function desenharCabecalho(doc, { margemEsquerda, larguraUtil, titulo, subtitulo
    forma legível, sem se misturar com o campo vizinho. Devolve o y seguinte. */
 function desenharCampo(doc, { x, y, largura, rotulo, valor, vazio = 'Não definido', cor = COR_TEXTO, tamanho = 9.5, negrito = false, novaPaginaSeNecessario }) {
   const texto = sanitizarTexto(valor);
+  // Mede com a MESMA fonte/tamanho que vai desenhar depois — medir com o que
+  // estava ativo antes (ex: a fonte do selo de prioridade, menor) subestima a
+  // largura real e o texto acaba passando da borda do cartão.
+  doc.setFont('helvetica', negrito ? 'bold' : 'normal');
+  doc.setFontSize(tamanho);
   const linhas = doc.splitTextToSize(texto || vazio, largura);
   const alturaLinha = tamanho * 0.46;
   const alturaTotal = 3.8 + linhas.length * alturaLinha;

@@ -191,7 +191,7 @@ function renderRevisao(container, estado, salvarEstado, irParaPlanoAcao) {
   div.className = 'conteudo';
 
   const avisosHtml = estado.avisos.length > 0 ? `
-    <div class="cartao-item" style="border-color:var(--cor-dourado);background:rgba(201,162,39,0.08);margin-bottom:16px;">
+    <div class="cartao-item" style="border-color:var(--cor-dourado);background:rgba(33,31,28,0.05);margin-bottom:16px;">
       <div style="font-size:13px;font-weight:700;color:var(--cor-dourado);margin-bottom:6px;">Confira antes de salvar</div>
       <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--cor-texto-suave);">
         ${estado.avisos.map(a => `<li style="margin-bottom:4px;">${a}</li>`).join('')}
